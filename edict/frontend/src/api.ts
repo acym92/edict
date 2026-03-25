@@ -63,6 +63,8 @@ export const api = {
     postJ<ActionResult>(`${API_BASE}/api/archive-task`, { taskId, archived }),
   archiveAllDone: () =>
     postJ<ActionResult & { count?: number }>(`${API_BASE}/api/archive-task`, { archiveAllDone: true }),
+  deleteTask: (taskId: string) =>
+    postJ<ActionResult>(`${API_BASE}/api/delete-task`, { taskId }),
   schedulerScan: (thresholdSec = 180) =>
     postJ<ActionResult & { count?: number; actions?: ScanAction[]; checkedAt?: string }>(
       `${API_BASE}/api/scheduler-scan`,
