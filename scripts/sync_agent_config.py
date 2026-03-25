@@ -29,23 +29,6 @@ ID_LABEL = {
     'zaochao':  {'label': '钦天监', 'role': '朝报官',   'duty': '每日新闻采集与简报',  'emoji': '📰'},
 }
 
-KNOWN_MODELS = [
-    {'id': 'anthropic/claude-sonnet-4-6', 'label': 'Claude Sonnet 4.6', 'provider': 'Anthropic'},
-    {'id': 'anthropic/claude-opus-4-5',   'label': 'Claude Opus 4.5',   'provider': 'Anthropic'},
-    {'id': 'anthropic/claude-haiku-3-5',  'label': 'Claude Haiku 3.5',  'provider': 'Anthropic'},
-    {'id': 'openai/gpt-4o',               'label': 'GPT-4o',            'provider': 'OpenAI'},
-    {'id': 'openai/gpt-4o-mini',          'label': 'GPT-4o Mini',       'provider': 'OpenAI'},
-    {'id': 'openai-codex/gpt-5.3-codex',  'label': 'GPT-5.3 Codex',    'provider': 'OpenAI Codex'},
-    {'id': 'google/gemini-2.0-flash',     'label': 'Gemini 2.0 Flash',  'provider': 'Google'},
-    {'id': 'google/gemini-2.5-pro',       'label': 'Gemini 2.5 Pro',    'provider': 'Google'},
-    {'id': 'copilot/claude-sonnet-4',     'label': 'Claude Sonnet 4',   'provider': 'Copilot'},
-    {'id': 'copilot/claude-opus-4.5',     'label': 'Claude Opus 4.5',   'provider': 'Copilot'},
-    {'id': 'github-copilot/claude-opus-4.6', 'label': 'Claude Opus 4.6', 'provider': 'GitHub Copilot'},
-    {'id': 'copilot/gpt-4o',              'label': 'GPT-4o',            'provider': 'Copilot'},
-    {'id': 'copilot/gemini-2.5-pro',      'label': 'Gemini 2.5 Pro',    'provider': 'Copilot'},
-    {'id': 'copilot/o3-mini',             'label': 'o3-mini',           'provider': 'Copilot'},
-]
-
 
 def normalize_model(model_value, fallback='unknown'):
     if isinstance(model_value, str) and model_value:
@@ -80,10 +63,8 @@ def get_skills(workspace: str):
 
 
 def _collect_openclaw_models(cfg):
-    """从 openclaw.json 中收集所有已配置的 model id，与 KNOWN_MODELS 合并去重。
-    解决 #127: 自定义 provider 的 model 不在下拉列表中。
-    """
-    known_ids = {m['id'] for m in KNOWN_MODELS}
+    """从 openclaw.json 中收集所有已配置的 model id（不注入任何预设模型）。"""
+    known_ids = set()
     extra = []
     agents_cfg = cfg.get('agents', {})
     # 收集 defaults.model
@@ -104,7 +85,7 @@ def _collect_openclaw_models(cfg):
             if mid_str and mid_str not in known_ids:
                 extra.append({'id': mid_str, 'label': mid_str, 'provider': pname})
                 known_ids.add(mid_str)
-    return KNOWN_MODELS + extra
+    return extra
 
 
 def main():
