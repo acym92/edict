@@ -167,6 +167,54 @@ def handle_archive_task(task_id, archived, archive_all_done=False):
     return {'ok': True, 'message': f'{task_id} {label}'}
 
 
+def _delete_task_refs_from_sessions(task_id):
+    """删除 agents session jsonl 中提及 task_id 的记录。"""
+    base = OCLAW_HOME / 'agents'
+    if not base.exists():
+        return {'files': 0, 'lines': 0}
+    files_touched = 0
+    lines_removed = 0
+    for sf in base.glob('*/sessions/*.jsonl'):
+        try:
+            lines = sf.read_text(errors='ignore').splitlines()
+        except Exception:
+            continue
+        kept = []
+        removed = 0
+        for ln in lines:
+            if task_id in ln:
+                removed += 1
+            else:
+                kept.append(ln)
+        if removed > 0:
+            try:
+                sf.write_text('\n'.join(kept) + ('\n' if kept else ''))
+                files_touched += 1
+                lines_removed += removed
+            except Exception:
+                continue
+    return {'files': files_touched, 'lines': lines_removed}
+
+
+def handle_delete_task(task_id):
+    """彻底删除任务及相关引用记录。"""
+    tasks = load_tasks()
+    before = len(tasks)
+    tasks = [t for t in tasks if t.get('id') != task_id]
+    if len(tasks) == before:
+        return {'ok': False, 'error': f'任务 {task_id} 不存在'}
+
+    save_tasks(tasks)
+    refs = _delete_task_refs_from_sessions(task_id)
+    return {
+        'ok': True,
+        'message': f'{task_id} 已删除（并清理关联记录）',
+        'deletedTaskId': task_id,
+        'sessionFilesTouched': refs['files'],
+        'sessionLinesRemoved': refs['lines'],
+    }
+
+
 def update_task_todos(task_id, todos):
     """Update the todos list for a task."""
     tasks = load_tasks()
@@ -2373,6 +2421,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({'ok': False, 'error': 'taskId or archiveAllDone required'}, 400)
                 return
             result = handle_archive_task(task_id, archived, archive_all)
+            self.send_json(result)
+            return
+
+        if p == '/api/delete-task':
+            task_id = body.get('taskId', '').strip()
+            if not task_id:
+                self.send_json({'ok': False, 'error': 'taskId required'}, 400)
+                return
+            result = handle_delete_task(task_id)
             self.send_json(result)
             return
 

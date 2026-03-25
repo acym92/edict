@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useStore, isEdict, STATE_LABEL } from '../store';
-import type { Task, FlowEntry } from '../api';
+import { api, type Task, type FlowEntry } from '../api';
 
 export default function MemorialPanel() {
   const liveStatus = useStore((s) => s.liveStatus);
   const [filter, setFilter] = useState('all');
   const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState('');
   const toast = useStore((s) => s.toast);
+  const loadAll = useStore((s) => s.loadAll);
 
   const tasks = liveStatus?.tasks || [];
   let mems = tasks.filter((t) => isEdict(t) && ['Done', 'Cancelled'].includes(t.state));
@@ -35,6 +37,27 @@ export default function MemorialPanel() {
     );
   };
 
+  const handleDelete = async () => {
+    if (!selectedTaskId) {
+      toast('请先选中一条奏折', 'err');
+      return;
+    }
+    if (!confirm(`确定要删除 ${selectedTaskId} 及其关联记录吗？此操作不可恢复。`)) return;
+    try {
+      const r = await api.deleteTask(selectedTaskId);
+      if (r.ok) {
+        toast(r.message || `${selectedTaskId} 已删除`, 'ok');
+        setSelectedTaskId('');
+        setDetailTask(null);
+        loadAll();
+      } else {
+        toast(r.error || '删除失败', 'err');
+      }
+    } catch {
+      toast('服务器连接失败', 'err');
+    }
+  };
+
   return (
     <div>
       {/* Filter */}
@@ -53,6 +76,13 @@ export default function MemorialPanel() {
             {f.label}
           </span>
         ))}
+        <span
+          className={`sess-filter${selectedTaskId ? ' active' : ''}`}
+          onClick={handleDelete}
+          title={selectedTaskId ? `删除 ${selectedTaskId}` : '请先选中一条数据'}
+        >
+          🗑️ 删除
+        </span>
       </div>
 
       {/* List */}
@@ -67,7 +97,13 @@ export default function MemorialPanel() {
             const lastAt = fl.length ? (fl[fl.length - 1].at || '').substring(0, 16).replace('T', ' ') : '';
             const stIcon = t.state === 'Done' ? '✅' : '🚫';
             return (
-              <div className="mem-card" key={t.id} onClick={() => setDetailTask(t)}>
+              <div
+                className="mem-card"
+                key={t.id}
+                onClick={() => setSelectedTaskId(t.id)}
+                onDoubleClick={() => setDetailTask(t)}
+                style={selectedTaskId === t.id ? { borderColor: 'var(--acc)', boxShadow: '0 0 0 1px var(--acc) inset' } : undefined}
+              >
                 <div className="mem-icon">📜</div>
                 <div className="mem-info">
                   <div className="mem-title">
