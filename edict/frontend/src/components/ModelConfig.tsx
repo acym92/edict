@@ -2,18 +2,6 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { api } from '../api';
 
-const FALLBACK_MODELS = [
-  { id: 'anthropic/claude-sonnet-4-6', l: 'Claude Sonnet 4.6', p: 'Anthropic' },
-  { id: 'anthropic/claude-opus-4-5', l: 'Claude Opus 4.5', p: 'Anthropic' },
-  { id: 'anthropic/claude-haiku-3-5', l: 'Claude Haiku 3.5', p: 'Anthropic' },
-  { id: 'openai/gpt-4o', l: 'GPT-4o', p: 'OpenAI' },
-  { id: 'openai/gpt-4o-mini', l: 'GPT-4o Mini', p: 'OpenAI' },
-  { id: 'google/gemini-2.5-pro', l: 'Gemini 2.5 Pro', p: 'Google' },
-  { id: 'copilot/claude-sonnet-4', l: 'Claude Sonnet 4', p: 'Copilot' },
-  { id: 'copilot/claude-opus-4.5', l: 'Claude Opus 4.5', p: 'Copilot' },
-  { id: 'copilot/gpt-4o', l: 'GPT-4o', p: 'Copilot' },
-  { id: 'copilot/gemini-2.5-pro', l: 'Gemini 2.5 Pro', p: 'Copilot' },
-];
 
 const CHANNELS = [
   { id: 'feishu', label: '飞书 Feishu' },
@@ -57,9 +45,7 @@ export default function ModelConfig() {
     return <div className="empty" style={{ gridColumn: '1/-1' }}>⚠️ 请先启动本地服务器</div>;
   }
 
-  const models = agentConfig.knownModels?.length
-    ? agentConfig.knownModels.map((m) => ({ id: m.id, l: m.label, p: m.provider }))
-    : FALLBACK_MODELS;
+  const models = (agentConfig.knownModels || []).map((m) => ({ id: m.id, l: m.label, p: m.provider }));
 
   const handleSelect = (agentId: string, val: string) => {
     setSelMap((p) => ({ ...p, [agentId]: val }));
@@ -111,11 +97,15 @@ export default function ModelConfig() {
                 当前: <b>{ag.model}</b>
               </div>
               <select className="msel" value={sel} onChange={(e) => handleSelect(ag.id, e.target.value)}>
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.l} ({m.p})
-                  </option>
-                ))}
+                {models.length === 0 ? (
+                  <option value={ag.model}>{ag.model} (当前配置)</option>
+                ) : (
+                  models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.l} ({m.p})
+                    </option>
+                  ))
+                )}
               </select>
               <div className="mc-btns">
                 <button className="btn btn-p" disabled={!changed} onClick={() => applyModel(ag.id)}>
