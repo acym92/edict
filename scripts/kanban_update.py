@@ -45,6 +45,7 @@ from utils import now_iso  # noqa: E402
 STATE_ORG_MAP = {
     'Taizi': '太子', 'Zhongshu': '中书省', 'Menxia': '门下省', 'Assigned': '尚书省',
     'Hanlin': '翰林院',
+    'Dalishi': '大理寺',
     'Doing': '执行中', 'Review': '尚书省', 'Done': '完成', 'Blocked': '阻塞',
 }
 
@@ -54,6 +55,7 @@ _STATE_AGENT_MAP = {
     'Menxia': 'menxia',
     'Assigned': 'shangshu',
     'Hanlin': 'hanlin',
+    'Dalishi': 'dalishi',
     'Review': 'shangshu',
     'Pending': 'zhongshu',
 }
@@ -61,7 +63,7 @@ _STATE_AGENT_MAP = {
 _ORG_AGENT_MAP = {
     '礼部': 'libu', '户部': 'hubu', '兵部': 'bingbu',
     '刑部': 'xingbu', '工部': 'gongbu', '吏部': 'libu_hr',
-    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlin',
+    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlin', '大理寺': 'dalishi',
 }
 
 _AGENT_LABELS = {
@@ -70,6 +72,7 @@ _AGENT_LABELS = {
     'libu': '礼部', 'hubu': '户部', 'bingbu': '兵部', 'xingbu': '刑部',
     'gongbu': '工部', 'libu_hr': '吏部', 'zaochao': '钦天监',
     'hanlin': '翰林院',
+    'dalishi': '大理寺',
 }
 
 MAX_PROGRESS_LOG = 100  # 单任务最大进展日志条数
@@ -206,6 +209,8 @@ def cmd_create(task_id, title, state, org, official, remark=None):
             "flow_log": [{"at": now_iso(), "from": "皇上", "to": actual_org, "remark": clean_remark}],
             "updatedAt": now_iso()
         })
+        if title.startswith('论文') or state in ('Hanlin', 'Dalishi') or actual_org in ('翰林院', '大理寺'):
+            tasks[0]['pipeline'] = 'paper'
         return tasks
     atomic_json_update(TASKS_FILE, modifier, [])
     _trigger_refresh()
@@ -234,8 +239,9 @@ _VALID_TRANSITIONS = {
 _HANLIN_ONLY_TRANSITIONS = {
     'Pending': {'Taizi', 'Cancelled'},
     'Taizi': {'Hanlin', 'Cancelled'},
-    'Hanlin': {'Done', 'Blocked', 'Cancelled'},
-    'Blocked': {'Hanlin', 'Cancelled'},
+    'Hanlin': {'Dalishi', 'Done', 'Blocked', 'Cancelled'},
+    'Dalishi': {'Hanlin', 'Done', 'Blocked', 'Cancelled'},
+    'Blocked': {'Hanlin', 'Dalishi', 'Cancelled'},
     'Done': set(),
     'Cancelled': set(),
 }
@@ -273,6 +279,8 @@ def cmd_state(task_id, new_state, now_text=None):
         t['state'] = new_state
         if new_state in STATE_ORG_MAP:
             t['org'] = STATE_ORG_MAP[new_state]
+        if new_state in ('Hanlin', 'Dalishi'):
+            t['pipeline'] = 'paper'
         if now_text:
             t['now'] = now_text
         t['updatedAt'] = now_iso()
