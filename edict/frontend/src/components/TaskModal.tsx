@@ -221,6 +221,22 @@ export default function TaskModal() {
     doTaskAction('cancel', reason);
   };
 
+  const handleDelete = async () => {
+    if (!confirm(`确定要删除 ${task.id} 及其关联引用数据吗？\n\n此操作不可恢复。`)) return;
+    try {
+      const r = await api.deleteTask(task.id);
+      if (r.ok) {
+        toast(r.message || `${task.id} 已删除`, 'ok');
+        await loadAll();
+        close();
+      } else {
+        toast(r.error || '删除失败', 'err');
+      }
+    } catch {
+      toast('服务器连接失败', 'err');
+    }
+  };
+
   // Scheduler state
   const sched = schedData?.scheduler;
   const stalledSec = schedData?.stalledSec || 0;
@@ -392,6 +408,16 @@ export default function TaskModal() {
 
           {/* Live Activity */}
           <LiveActivitySection data={activityData} isDone={['Done', 'Cancelled'].includes(task.state)} logRef={logRef} />
+
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              className="btn-action btn-cancel"
+              style={{ background: '#ff527022', color: '#ff5270', border: '1px solid #ff527044' }}
+              onClick={handleDelete}
+            >
+              🗑️ 删除此旨意（含引用）
+            </button>
+          </div>
         </div>
       </div>
     </div>
