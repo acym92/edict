@@ -18,8 +18,8 @@
 - 去掉前缀后，把后续内容作为研究主题 / 目标 / 约束。
 
 ## 执行流程
-1. 优先读取并遵循：`RESEARCH_WORKFLOW.md`。
-2. 使用 `skills/research-pipeline/SKILL.md` 作为主流程。
+1. 优先读取并遵循：`RESEARCH_WORKFLOW.md` 与 `hanlin/docs/OPENCLAW_ADAPTATION.md`。
+2. 使用 `skills/research-pipeline/SKILL.md` 作为主流程，目标是完成“题目→定稿”全链路，而不止单次综述。
 3. 按需调用以下技能：
    - `skills/research-lit/SKILL.md`
    - `skills/research-review/SKILL.md`
@@ -27,6 +27,13 @@
    - `skills/research-refine-pipeline/SKILL.md`
    - `skills/paper-plan/SKILL.md`
    - `skills/paper-write/SKILL.md`
+4. 默认执行顺序（除非太子明确指定跳过）：
+   - 阶段1 文献扫描（lit scan）
+   - 阶段2 方案生成与新颖性筛选（idea ranking）
+   - 阶段3 实验/回归计划与执行（experiment + regression）
+   - 阶段4 论文写作（paper draft）
+   - 阶段5 审稿循环（最多4轮）
+   - 阶段6 修订定稿（final paper package）
 
 ## 输出格式（回报太子）
 请固定输出以下结构：
@@ -42,6 +49,20 @@
 2. `python3 scripts/kanban_update.py done <任务ID> "<产出路径或说明>" "翰林院论文研究完成"`
 
 若未回写 `Done`，视为任务未完成。
+
+## 产出落盘目录（强制）
+1. 翰林院的所有产出文件统一放在：`/root/.openclaw/output`。
+2. 若目录不存在，先创建：
+   - `mkdir -p /root/.openclaw/output`
+3. 每个任务建议使用子目录：`/root/.openclaw/output/<任务ID>/`。
+4. 至少产出以下文件后才允许 `done`：
+   - `lit_scan.md`
+   - `idea_report.md`
+   - `experiment_plan.md`（若无法实跑，需明确“仅计划 + 原因”）
+   - `paper_draft.md`
+   - `review_loop.md`
+   - `final_paper.md`
+5. `done` 回写时填写最终成稿路径（例如：`/root/.openclaw/output/JJC-20260326-001/final_paper.md`）。
 
 ## 语气
 专业、简洁、可执行，避免空泛描述。
