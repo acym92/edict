@@ -596,11 +596,19 @@ def handle_create_task(title, org='中书省', official='中书令', priority='n
     # 生成 task id: JJC-YYYYMMDD-NNN
     today = datetime.datetime.now().strftime('%Y%m%d')
     tasks = load_tasks()
-    today_ids = [t['id'] for t in tasks if t.get('id', '').startswith(f'JJC-{today}-')]
     seq = 1
-    if today_ids:
-        nums = [int(tid.split('-')[-1]) for tid in today_ids if tid.split('-')[-1].isdigit()]
-        seq = max(nums) + 1 if nums else 1
+    nums = []
+    for t in tasks:
+        tid = t.get('id')
+        if not isinstance(tid, str):
+            continue
+        if not tid.startswith(f'JJC-{today}-'):
+            continue
+        suffix = tid.split('-')[-1]
+        if suffix.isdigit():
+            nums.append(int(suffix))
+    if nums:
+        seq = max(nums) + 1
     task_id = f'JJC-{today}-{seq:03d}'
     # 正确流程起点：皇上 -> 太子分拣
     # target_dept 记录模板建议的最终执行部门（仅供尚书省派发参考）
@@ -2176,7 +2184,25 @@ class Handler(BaseHTTPRequestHandler):
             all_ok = all(checks.values())
             self.send_json({'status': 'ok' if all_ok else 'degraded', 'ts': now_iso(), 'checks': checks})
         elif p == '/api/live-status':
-            self.send_json(read_json(DATA / 'live_status.json'))
+            payload = read_json(DATA / 'live_status.json', {})
+            if not isinstance(payload, dict):
+                payload = {}
+            # 容错：当 live_status.json 缺失/损坏时，至少返回 tasks，避免前端看板空白。
+            if 'tasks' not in payload:
+                payload['tasks'] = load_tasks()
+            if 'officials' not in payload:
+                officials = read_json(DATA / 'officials_stats.json', {})
+                if isinstance(officials, dict):
+                    payload['officials'] = officials.get('officials', [])
+                elif isinstance(officials, list):
+                    payload['officials'] = officials
+                else:
+                    payload['officials'] = []
+            if 'syncStatus' not in payload:
+                payload['syncStatus'] = read_json(DATA / 'sync_status.json', {})
+            payload.setdefault('history', [])
+            payload.setdefault('metrics', {})
+            self.send_json(payload)
         elif p == '/api/agent-config':
             self.send_json(read_json(DATA / 'agent_config.json'))
         elif p == '/api/model-change-log':
