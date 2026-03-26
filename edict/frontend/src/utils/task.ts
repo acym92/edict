@@ -36,7 +36,7 @@ export function getPipeStatus(task: Task): PipeStatus[] {
   const flowLog = task.flow_log || [];
   const hasHanlin = (task.org || '') === '翰林院'
     || flowLog.some((f) => (f.from || '') === '翰林院' || (f.to || '') === '翰林院')
-    || task.sourceMeta?.agentId === 'hanlin';
+    || task.sourceMeta?.agentId === 'hanlinyuan';
   const hasClassic = flowLog.some((f) => ['中书省', '门下省', '尚书省', '礼部', '户部', '兵部', '刑部', '工部', '吏部'].includes(f.from || '')
     || ['中书省', '门下省', '尚书省', '礼部', '户部', '兵部', '刑部', '工部', '吏部'].includes(f.to || ''));
   const isHanlinFlow = (hasHanlin && !hasClassic)

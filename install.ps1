@@ -76,7 +76,7 @@ function Backup-Existing {
 function Create-Workspaces {
     Info "创建 Agent Workspace..."
 
-    $agents = @("taizi","zhongshu","menxia","shangshu","hubu","libu","bingbu","xingbu","gongbu","libu_hr","zaochao","hanlin","dalishi")
+    $agents = @("taizi","zhongshu","menxia","shangshu","hubu","libu","bingbu","xingbu","gongbu","libu_hr","zaochao","hanlinyuan","dalishi")
     foreach ($agent in $agents) {
         $ws = Join-Path $OC_HOME "workspace-$agent"
         New-Item -ItemType Directory -Path (Join-Path $ws "skills") -Force | Out-Null
@@ -122,7 +122,7 @@ cfg_path = pathlib.Path(os.environ['USERPROFILE']) / '.openclaw' / 'openclaw.jso
 cfg = json.loads(cfg_path.read_text(encoding='utf-8'))
 
 AGENTS = [
-    {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu", "hanlin", "dalishi"]}},
+    {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu", "hanlinyuan", "dalishi"]}},
     {"id": "zhongshu", "subagents": {"allowAgents": ["menxia", "shangshu"]}},
     {"id": "menxia",   "subagents": {"allowAgents": ["shangshu", "zhongshu"]}},
     {"id": "shangshu", "subagents": {"allowAgents": ["zhongshu", "menxia", "hubu", "libu", "bingbu", "xingbu", "gongbu", "libu_hr"]}},
@@ -133,8 +133,8 @@ AGENTS = [
     {"id": "gongbu",   "subagents": {"allowAgents": ["shangshu"]}},
     {"id": "libu_hr",  "subagents": {"allowAgents": ["shangshu"]}},
     {"id": "zaochao",  "subagents": {"allowAgents": []}},
-    {"id": "hanlin",   "subagents": {"allowAgents": ["taizi", "dalishi"]}},
-    {"id": "dalishi",  "subagents": {"allowAgents": ["taizi", "hanlin"]}},
+    {"id": "hanlinyuan",   "subagents": {"allowAgents": ["taizi", "dalishi"]}},
+    {"id": "dalishi",  "subagents": {"allowAgents": ["taizi", "hanlinyuan"]}},
 ]
 
 agents_cfg = cfg.setdefault('agents', {})
@@ -188,7 +188,7 @@ function Init-Data {
 function Link-Resources {
     Info "创建 data/scripts 目录连接..."
     $linked = 0
-    $agents = @("taizi","zhongshu","menxia","shangshu","hubu","libu","bingbu","xingbu","gongbu","libu_hr","zaochao","hanlin","dalishi")
+    $agents = @("taizi","zhongshu","menxia","shangshu","hubu","libu","bingbu","xingbu","gongbu","libu_hr","zaochao","hanlinyuan","dalishi")
     foreach ($agent in $agents) {
         $ws = Join-Path $OC_HOME "workspace-$agent"
         New-Item -ItemType Directory -Path $ws -Force | Out-Null

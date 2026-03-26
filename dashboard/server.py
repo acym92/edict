@@ -659,7 +659,7 @@ def handle_review_action(task_id, action, comment=''):
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
         return {'ok': False, 'error': f'任务 {task_id} 不存在'}
-    if _is_hanlin_task(task):
+    if _is_hanlinyuan_task(task):
         return {'ok': False, 'error': f'任务 {task_id} 属于翰林院专线，不经过门下审议流程'}
     if task.get('state') not in ('Review', 'Menxia'):
         return {'ok': False, 'error': f'任务 {task_id} 当前状态为 {task.get("state")}，无法御批'}
@@ -722,7 +722,7 @@ _AGENT_DEPTS = [
     {'id':'gongbu',  'label':'工部',  'emoji':'🔧', 'role':'工部尚书', 'rank':'正二品'},
     {'id':'libu_hr', 'label':'吏部',  'emoji':'👔', 'role':'吏部尚书', 'rank':'正二品'},
     {'id':'zaochao', 'label':'钦天监','emoji':'📰', 'role':'朝报官',   'rank':'正三品'},
-    {'id':'hanlin', 'label':'翰林院','emoji':'🧪', 'role':'翰林学士', 'rank':'正一品'},
+    {'id':'hanlinyuan', 'label':'翰林院','emoji':'🧪', 'role':'翰林院学士', 'rank':'正一品'},
     {'id':'dalishi', 'label':'大理寺','emoji':'⚖️', 'role':'大理寺卿', 'rank':'正一品'},
 ]
 
@@ -919,7 +919,7 @@ def wake_agent(agent_id, message=''):
 # 状态 → agent_id 映射
 _STATE_AGENT_MAP = {
     'Taizi': 'taizi',
-    'Hanlin': 'hanlin',
+    'Hanlin': 'hanlinyuan',
     'Dalishi': 'dalishi',
     'Zhongshu': 'zhongshu',
     'Menxia': 'menxia',
@@ -932,7 +932,7 @@ _STATE_AGENT_MAP = {
 _ORG_AGENT_MAP = {
     '礼部': 'libu', '户部': 'hubu', '兵部': 'bingbu',
     '刑部': 'xingbu', '工部': 'gongbu', '吏部': 'libu_hr',
-    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlin', '大理寺': 'dalishi',
+    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlinyuan', '大理寺': 'dalishi',
 }
 
 _TERMINAL_STATES = {'Done', 'Cancelled'}
@@ -1945,7 +1945,7 @@ _STATE_LABELS = {
 }
 
 
-def _is_hanlin_task(task: dict) -> bool:
+def _is_hanlinyuan_task(task: dict) -> bool:
     title = str(task.get('title') or '')
     org = str(task.get('org') or '')
     if title.startswith('论文') or org == '翰林院':
@@ -1958,7 +1958,7 @@ def _is_hanlin_task(task: dict) -> bool:
     return False
 
 
-def _hanlin_route_hint(title: str) -> str:
+def _hanlinyuan_route_hint(title: str) -> str:
     if title.startswith('论文/主题'):
         return 'research-pipeline'
     if title.startswith('论文/审稿'):
@@ -1980,7 +1980,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
         log.info(f'ℹ️ {task_id} 新状态 {new_state} 无对应 Agent，跳过自动派发')
         return
     dispatch_targets = [agent_id]
-    if _is_hanlin_task(task) and new_state == 'Hanlin' and 'dalishi' not in dispatch_targets:
+    if _is_hanlinyuan_task(task) and new_state == 'Hanlin' and 'dalishi' not in dispatch_targets:
         dispatch_targets.append('dalishi')
 
     _update_task_scheduler(task_id, lambda t, s: (
@@ -1996,7 +1996,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
     title = task.get('title', '(无标题)')
     target_dept = task.get('targetDept', '')
 
-    hanlin_hint = _hanlin_route_hint(title)
+    hanlinyuan_hint = _hanlinyuan_route_hint(title)
     # 根据 agent_id 构造针对性消息
     _msgs = {
         'taizi': (
@@ -2028,12 +2028,12 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
             f'⚠️ 看板已有此任务，请勿重复创建。\n'
             f'请分析方案并派发给六部执行。'
         ),
-        'hanlin': (
+        'hanlinyuan': (
             f'🧪 论文研究任务已转交翰林院\n'
             f'任务ID: {task_id}\n'
             f'旨意: {title}\n'
             f'⚠️ 看板已有此任务，请勿重复创建。\n'
-            f'推荐路由: {hanlin_hint}\n'
+            f'推荐路由: {hanlinyuan_hint}\n'
             f'请按上述路由执行，并在完成后将任务状态更新为 Done。'
         ),
         'dalishi': (
@@ -2142,7 +2142,7 @@ def handle_advance_state(task_id, comment=''):
         return {'ok': False, 'error': f'任务 {task_id} 不存在'}
     cur = task.get('state', '')
     state_flow = dict(_STATE_FLOW)
-    if _is_hanlin_task(task):
+    if _is_hanlinyuan_task(task):
         state_flow['Taizi'] = ('Hanlin', '太子', '翰林院', '太子分拣完毕，转翰林院执行论文流程')
 
     if cur not in state_flow:

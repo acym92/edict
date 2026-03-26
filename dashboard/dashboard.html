@@ -748,7 +748,7 @@
       <span class="sess-filter" data-sf="libu_hr" onclick="filterSessions('libu_hr',this)">吏部</span>
       <span class="sess-filter" data-sf="menxia" onclick="filterSessions('menxia',this)">门下省</span>
       <span class="sess-filter" data-sf="zaochao" onclick="filterSessions('zaochao',this)">钦天监</span>
-      <span class="sess-filter" data-sf="hanlin" onclick="filterSessions('hanlin',this)">翰林院</span>
+      <span class="sess-filter" data-sf="hanlinyuan" onclick="filterSessions('hanlinyuan',this)">翰林院</span>
       <span class="sess-filter" data-sf="dalishi" onclick="filterSessions('dalishi',this)">大理寺</span>
     </div>
     <div id="sess-grid" class="sess-grid"></div>
@@ -937,7 +937,7 @@ const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g
 async function fetchJ(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw Error(r.status);return r.json()}
 async function postJ(u,d){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json()}
 function toast(msg,type='ok',ms=3000){const el=document.createElement('div');el.className=`toast ${type}`;el.textContent=msg;document.getElementById('toaster').appendChild(el);setTimeout(()=>el.remove(),ms)}
-const STATE_LABEL={Inbox:'收件',Pending:'待处理',Taizi:'太子分拣',Hanlin:'翰林执行',Dalishi:'大理寺审稿',Zhongshu:'中书起草',Menxia:'门下审议',Assigned:'已派发',Doing:'执行中',Review:'待审查',Done:'已完成',Blocked:'阻塞',Cancelled:'已取消',Next:'待执行'};
+const STATE_LABEL={Inbox:'收件',Pending:'待处理',Taizi:'太子分拣',Hanlin:'翰林院执行',Dalishi:'大理寺审稿',Zhongshu:'中书起草',Menxia:'门下审议',Assigned:'已派发',Doing:'执行中',Review:'待审查',Done:'已完成',Blocked:'阻塞',Cancelled:'已取消',Next:'待执行'};
 // 根据轮次动态生成状态标签
 function stateLabel(t){
   const r = t.review_round||0;
@@ -1173,7 +1173,7 @@ function renderMonitor(tasks){
     {id:'gongbu',  label:'工部',  emoji:'🔧',role:'工部尚书',rank:'正二品'},
     {id:'libu_hr', label:'吏部',  emoji:'👔',role:'吏部尚书',rank:'正二品'},
     {id:'zaochao', label:'钦天监',emoji:'📰',role:'朝报官',  rank:'正三品'},
-    {id:'hanlin', label:'翰林院',emoji:'🧪',role:'翰林学士',rank:'正一品'},
+    {id:'hanlinyuan', label:'翰林院',emoji:'🧪',role:'翰林院学士',rank:'正一品'},
     {id:'dalishi', label:'大理寺',emoji:'⚖️',role:'大理寺卿',rank:'正一品'},
   ];
 
@@ -2131,7 +2131,7 @@ function extractAgent(t){
   const sm = t.sourceMeta||{};
   if(sm.agentId){
     // "mc-gateway-xxx" → try to match known agents
-    const known = ['taizi','zhongshu','menxia','shangshu','hubu','libu','bingbu','xingbu','gongbu','zaochao','hanlin','dalishi'];
+    const known = ['taizi','zhongshu','menxia','shangshu','hubu','libu','bingbu','xingbu','gongbu','zaochao','hanlinyuan','dalishi'];
     for(const k of known){ if(sm.agentId.includes(k)) return k; }
   }
   return (t.org||'').replace(/省|部/g,'').toLowerCase();

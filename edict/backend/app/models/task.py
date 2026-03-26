@@ -60,7 +60,7 @@ STATE_TRANSITIONS = {
 # 状态 → Agent 映射
 STATE_AGENT_MAP = {
     TaskState.Taizi: "taizi",
-    TaskState.Hanlin: "hanlin",
+    TaskState.Hanlin: "hanlinyuan",
     TaskState.Zhongshu: "zhongshu",
     TaskState.Menxia: "menxia",
     TaskState.Assigned: "shangshu",
