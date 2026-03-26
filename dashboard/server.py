@@ -635,6 +635,8 @@ def handle_create_task(title, org='中书省', official='中书令', priority='n
         }],
         'updatedAt': now_iso(),
     }
+    if str(title).startswith('论文'):
+        new_task['pipeline'] = 'paper'
     if target_dept:
         new_task['targetDept'] = target_dept
 
@@ -721,6 +723,7 @@ _AGENT_DEPTS = [
     {'id':'libu_hr', 'label':'吏部',  'emoji':'👔', 'role':'吏部尚书', 'rank':'正二品'},
     {'id':'zaochao', 'label':'钦天监','emoji':'📰', 'role':'朝报官',   'rank':'正三品'},
     {'id':'hanlin', 'label':'翰林院','emoji':'🧪', 'role':'翰林学士', 'rank':'正一品'},
+    {'id':'dalishi', 'label':'大理寺','emoji':'⚖️', 'role':'大理寺卿', 'rank':'正一品'},
 ]
 
 
@@ -917,6 +920,7 @@ def wake_agent(agent_id, message=''):
 _STATE_AGENT_MAP = {
     'Taizi': 'taizi',
     'Hanlin': 'hanlin',
+    'Dalishi': 'dalishi',
     'Zhongshu': 'zhongshu',
     'Menxia': 'menxia',
     'Assigned': 'shangshu',
@@ -928,7 +932,7 @@ _STATE_AGENT_MAP = {
 _ORG_AGENT_MAP = {
     '礼部': 'libu', '户部': 'hubu', '兵部': 'bingbu',
     '刑部': 'xingbu', '工部': 'gongbu', '吏部': 'libu_hr',
-    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlin',
+    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlin', '大理寺': 'dalishi',
 }
 
 _TERMINAL_STATES = {'Done', 'Cancelled'}
@@ -1926,7 +1930,8 @@ def get_task_activity(task_id):
 _STATE_FLOW = {
     'Pending':  ('Taizi', '皇上', '太子', '待处理旨意转交太子分拣'),
     'Taizi':    ('Zhongshu', '太子', '中书省', '太子分拣完毕，转中书省起草'),
-    'Hanlin':   ('Done', '翰林院', '太子', '翰林院完成论文研究，回奏太子转报皇上'),
+    'Hanlin':   ('Dalishi', '翰林院', '大理寺', '翰林院提交成果，大理寺进入审稿'),
+    'Dalishi':  ('Done', '大理寺', '太子', '大理寺终审通过，回奏太子转报皇上'),
     'Zhongshu': ('Menxia', '中书省', '门下省', '中书省方案提交门下省审议'),
     'Menxia':   ('Assigned', '门下省', '尚书省', '门下省准奏，转尚书省派发'),
     'Assigned': ('Doing', '尚书省', '六部', '尚书省开始派发执行'),
@@ -1935,7 +1940,7 @@ _STATE_FLOW = {
     'Review':   ('Done', '尚书省', '太子', '全流程完成，回奏太子转报皇上'),
 }
 _STATE_LABELS = {
-    'Pending': '待处理', 'Taizi': '太子', 'Hanlin': '翰林院', 'Zhongshu': '中书省', 'Menxia': '门下省',
+    'Pending': '待处理', 'Taizi': '太子', 'Hanlin': '翰林院', 'Dalishi': '大理寺', 'Zhongshu': '中书省', 'Menxia': '门下省',
     'Assigned': '尚书省', 'Next': '待执行', 'Doing': '执行中', 'Review': '审查', 'Done': '完成',
 }
 
@@ -1947,6 +1952,8 @@ def _is_hanlin_task(task: dict) -> bool:
         return True
     for fl in (task.get('flow_log') or []):
         if (fl.get('from') == '翰林院') or (fl.get('to') == '翰林院'):
+            return True
+        if (fl.get('from') == '大理寺') or (fl.get('to') == '大理寺'):
             return True
     return False
 
@@ -1972,15 +1979,18 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
     if not agent_id:
         log.info(f'ℹ️ {task_id} 新状态 {new_state} 无对应 Agent，跳过自动派发')
         return
+    dispatch_targets = [agent_id]
+    if _is_hanlin_task(task) and new_state == 'Hanlin' and 'dalishi' not in dispatch_targets:
+        dispatch_targets.append('dalishi')
 
     _update_task_scheduler(task_id, lambda t, s: (
         s.update({
             'lastDispatchAt': now_iso(),
             'lastDispatchStatus': 'queued',
-            'lastDispatchAgent': agent_id,
+            'lastDispatchAgent': ','.join(dispatch_targets),
             'lastDispatchTrigger': trigger,
         }),
-        _scheduler_add_flow(t, f'已入队派发：{new_state} → {agent_id}（{trigger}）', to=_STATE_LABELS.get(new_state, new_state))
+        _scheduler_add_flow(t, f'已入队派发：{new_state} → {",".join(dispatch_targets)}（{trigger}）', to=_STATE_LABELS.get(new_state, new_state))
     ))
 
     title = task.get('title', '(无标题)')
@@ -2026,13 +2036,14 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
             f'推荐路由: {hanlin_hint}\n'
             f'请按上述路由执行，并在完成后将任务状态更新为 Done。'
         ),
+        'dalishi': (
+            f'⚖️ 论文审稿监督任务已唤醒\n'
+            f'任务ID: {task_id}\n'
+            f'旨意: {title}\n'
+            f'你只能与太子、翰林院协作，请全程监督翰林院产出并给出审稿意见。\n'
+            f'审稿结论请推动状态在 Dalishi ↔ Hanlin 之间流转，终审通过后可置为 Done。'
+        ),
     }
-    msg = _msgs.get(agent_id, (
-        f'📌 请处理任务\n'
-        f'任务ID: {task_id}\n'
-        f'旨意: {title}\n'
-        f'⚠️ 看板已有此任务，请勿重复创建。直接用 kanban_update.py 更新状态。'
-    ))
 
     def _do_dispatch():
         try:
@@ -2041,60 +2052,70 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                 _update_task_scheduler(task_id, lambda t, s: s.update({
                     'lastDispatchAt': now_iso(),
                     'lastDispatchStatus': 'gateway-offline',
-                    'lastDispatchAgent': agent_id,
+                    'lastDispatchAgent': ','.join(dispatch_targets),
                     'lastDispatchTrigger': trigger,
                 }))
                 return
             # Fix #139: dispatch channel 可配置（默认 feishu，支持 telegram/wecom/signal 等）
             _agent_cfg = read_json(DATA / 'agent_config.json', {})
             _channel = (_agent_cfg.get('dispatchChannel') or 'feishu').strip()
-            cmd = ['openclaw', 'agent', '--agent', agent_id, '-m', msg,
-                   '--deliver', '--channel', _channel, '--timeout', '300']
             max_retries = 2
-            err = ''
-            for attempt in range(1, max_retries + 1):
-                log.info(f'🔄 自动派发 {task_id} → {agent_id} (第{attempt}次)...')
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=310)
-                if result.returncode == 0:
-                    log.info(f'✅ {task_id} 自动派发成功 → {agent_id}')
+            last_err = ''
+            for target in dispatch_targets:
+                msg = _msgs.get(target, (
+                    f'📌 请处理任务\n'
+                    f'任务ID: {task_id}\n'
+                    f'旨意: {title}\n'
+                    f'⚠️ 看板已有此任务，请勿重复创建。直接用 kanban_update.py 更新状态。'
+                ))
+                cmd = ['openclaw', 'agent', '--agent', target, '-m', msg,
+                       '--deliver', '--channel', _channel, '--timeout', '300']
+                sent = False
+                for attempt in range(1, max_retries + 1):
+                    log.info(f'🔄 自动派发 {task_id} → {target} (第{attempt}次)...')
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=310)
+                    if result.returncode == 0:
+                        log.info(f'✅ {task_id} 自动派发成功 → {target}')
+                        _update_task_scheduler(task_id, lambda t, s: (
+                            s.update({
+                                'lastDispatchAt': now_iso(),
+                                'lastDispatchStatus': 'success',
+                                'lastDispatchAgent': target,
+                                'lastDispatchTrigger': trigger,
+                                'lastDispatchError': '',
+                            }),
+                            _scheduler_add_flow(t, f'派发成功：{target}（{trigger}）', to=t.get('org', ''))
+                        ))
+                        sent = True
+                        break
+                    last_err = result.stderr[:200] if result.stderr else result.stdout[:200]
+                    log.warning(f'⚠️ {task_id} 自动派发失败(第{attempt}次): {last_err}')
+                    if attempt < max_retries:
+                        import time
+                        time.sleep(5)
+                if not sent:
+                    log.error(f'❌ {task_id} 自动派发最终失败 → {target}')
                     _update_task_scheduler(task_id, lambda t, s: (
                         s.update({
                             'lastDispatchAt': now_iso(),
-                            'lastDispatchStatus': 'success',
-                            'lastDispatchAgent': agent_id,
+                            'lastDispatchStatus': 'failed',
+                            'lastDispatchAgent': target,
                             'lastDispatchTrigger': trigger,
-                            'lastDispatchError': '',
+                            'lastDispatchError': last_err,
                         }),
-                        _scheduler_add_flow(t, f'派发成功：{agent_id}（{trigger}）', to=t.get('org', ''))
+                        _scheduler_add_flow(t, f'派发失败：{target}（{trigger}）', to=t.get('org', ''))
                     ))
-                    return
-                err = result.stderr[:200] if result.stderr else result.stdout[:200]
-                log.warning(f'⚠️ {task_id} 自动派发失败(第{attempt}次): {err}')
-                if attempt < max_retries:
-                    import time
-                    time.sleep(5)
-            log.error(f'❌ {task_id} 自动派发最终失败 → {agent_id}')
-            _update_task_scheduler(task_id, lambda t, s: (
-                s.update({
-                    'lastDispatchAt': now_iso(),
-                    'lastDispatchStatus': 'failed',
-                    'lastDispatchAgent': agent_id,
-                    'lastDispatchTrigger': trigger,
-                    'lastDispatchError': err,
-                }),
-                _scheduler_add_flow(t, f'派发失败：{agent_id}（{trigger}）', to=t.get('org', ''))
-            ))
         except subprocess.TimeoutExpired:
-            log.error(f'❌ {task_id} 自动派发超时 → {agent_id}')
+            log.error(f'❌ {task_id} 自动派发超时 → {",".join(dispatch_targets)}')
             _update_task_scheduler(task_id, lambda t, s: (
                 s.update({
                     'lastDispatchAt': now_iso(),
                     'lastDispatchStatus': 'timeout',
-                    'lastDispatchAgent': agent_id,
+                    'lastDispatchAgent': ','.join(dispatch_targets),
                     'lastDispatchTrigger': trigger,
                     'lastDispatchError': 'timeout',
                 }),
-                _scheduler_add_flow(t, f'派发超时：{agent_id}（{trigger}）', to=t.get('org', ''))
+                _scheduler_add_flow(t, f'派发超时：{",".join(dispatch_targets)}（{trigger}）', to=t.get('org', ''))
             ))
         except Exception as e:
             log.warning(f'⚠️ {task_id} 自动派发异常: {e}')
@@ -2102,15 +2123,15 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                 s.update({
                     'lastDispatchAt': now_iso(),
                     'lastDispatchStatus': 'error',
-                    'lastDispatchAgent': agent_id,
+                    'lastDispatchAgent': ','.join(dispatch_targets),
                     'lastDispatchTrigger': trigger,
                     'lastDispatchError': str(e)[:200],
                 }),
-                _scheduler_add_flow(t, f'派发异常：{agent_id}（{trigger}）', to=t.get('org', ''))
+                _scheduler_add_flow(t, f'派发异常：{",".join(dispatch_targets)}（{trigger}）', to=t.get('org', ''))
             ))
 
     threading.Thread(target=_do_dispatch, daemon=True).start()
-    log.info(f'🚀 {task_id} 推进后自动派发 → {agent_id}')
+    log.info(f'🚀 {task_id} 推进后自动派发 → {",".join(dispatch_targets)}')
 
 
 def handle_advance_state(task_id, comment=''):

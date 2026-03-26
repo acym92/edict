@@ -11,15 +11,6 @@ DATA = BASE / 'data'
 AGENTS_ROOT = pathlib.Path.home() / '.openclaw' / 'agents'
 OPENCLAW_CFG = pathlib.Path.home() / '.openclaw' / 'openclaw.json'
 
-def _resolve_hanlin_cfg() -> pathlib.Path:
-    base = pathlib.Path.home() / '.openclaw' / 'agents'
-    hanjia = base / 'hanjia' / 'agent' / 'hanlin.json'
-    hanlin = base / 'hanlin' / 'agent' / 'hanlin.json'
-    return hanjia if hanjia.exists() else hanlin
-
-
-HANLIN_CFG = _resolve_hanlin_cfg()
-
 # Anthropic 定价（每1M token，美元）
 MODEL_PRICING = {
     'anthropic/claude-sonnet-4-6':  {'in':3.0, 'out':15.0, 'cr':0.30, 'cw':3.75},
@@ -44,6 +35,7 @@ OFFICIALS = [
     {'id':'libu_hr', 'label':'吏部',  'role':'吏部尚书','emoji':'👔','rank':'正二品'},
     {'id':'zaochao', 'label':'钦天监','role':'朝报官',  'emoji':'📰','rank':'正三品'},
     {'id':'hanlin', 'label':'翰林院','role':'翰林学士','emoji':'🧪','rank':'正一品'},
+    {'id':'dalishi', 'label':'大理寺','role':'大理寺卿','emoji':'⚖️','rank':'正一品'},
 ]
 
 def rj(p, d):
@@ -69,13 +61,6 @@ def normalize_model(model_value, fallback='anthropic/claude-sonnet-4-6'):
     return fallback
 
 def get_model(agent_id):
-    if agent_id == 'hanlin':
-        cfg = rj(HANLIN_CFG, {})
-        env = cfg.get('env', {})
-        hanlin_model = (env.get('ANTHROPIC_DEFAULT_OPUS_MODEL') or '').strip()
-        if hanlin_model:
-            return hanlin_model
-
     cfg = _load_openclaw_cfg()
     default = normalize_model(cfg.get('agents',{}).get('defaults',{}).get('model',{}), 'anthropic/claude-sonnet-4-6')
     for a in cfg.get('agents',{}).get('list',[]):
