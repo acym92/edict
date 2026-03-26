@@ -92,7 +92,7 @@ backup_existing() {
 create_workspaces() {
   info "创建 Agent Workspace..."
   
-  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao hanlin dalishi)
+  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao hanlinyuan dalishi)
   for agent in "${AGENTS[@]}"; do
     ws="$OC_HOME/workspace-$agent"
     mkdir -p "$ws/skills"
@@ -121,10 +121,10 @@ AGENTS_EOF
 }
 
 # ── Step 1.5: 初始化论文研究 Agent 的技能与流程 ───────────────
-init_hanlin_assets() {
+init_hanlinyuan_assets() {
   info "初始化 Hanlin 论文研究技能..."
 
-  local ws="$OC_HOME/workspace-hanlin"
+  local ws="$OC_HOME/workspace-hanlinyuan"
   local ws_skills="$ws/skills"
   local src_root="$REPO_DIR/research/skills"
   local copied=0
@@ -132,7 +132,7 @@ init_hanlin_assets() {
   mkdir -p "$ws_skills"
   mkdir -p /root/.openclaw/output
 
-  # 复制 hanlin 顶层技能（排除聚合镜像目录 skills-codex*）
+  # 复制 hanlinyuan 顶层技能（排除聚合镜像目录 skills-codex*）
   for sk_path in "$src_root"/*; do
     [ -d "$sk_path" ] || continue
     sk="$(basename "$sk_path")"
@@ -162,11 +162,11 @@ WORKFLOW_EOF
   log "Hanlin 产出目录已就绪: /root/.openclaw/output"
 }
 
-init_hanlin_config() {
+init_hanlinyuan_config() {
   info "初始化 Hanlin 执行器/审查器配置..."
 
-  local cfg_dir="$OC_HOME/agents/hanlin/agent"
-  local cfg_file="$cfg_dir/hanlin.json"
+  local cfg_dir="$OC_HOME/agents/hanlinyuan/agent"
+  local cfg_file="$cfg_dir/hanlinyuan.json"
   mkdir -p "$cfg_dir"
 
   if [ ! -f "$cfg_file" ]; then
@@ -214,7 +214,7 @@ cfg_path = pathlib.Path.home() / '.openclaw' / 'openclaw.json'
 cfg = json.loads(cfg_path.read_text())
 
 AGENTS = [
-  {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu", "hanlin", "dalishi"]}},
+  {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu", "hanlinyuan", "dalishi"]}},
     {"id": "zhongshu", "subagents": {"allowAgents": ["menxia", "shangshu"]}},
     {"id": "menxia",   "subagents": {"allowAgents": ["shangshu", "zhongshu"]}},
   {"id": "shangshu", "subagents": {"allowAgents": ["zhongshu", "menxia", "hubu", "libu", "bingbu", "xingbu", "gongbu", "libu_hr"]}},
@@ -225,8 +225,8 @@ AGENTS = [
     {"id": "gongbu",   "subagents": {"allowAgents": ["shangshu"]}},
   {"id": "libu_hr",  "subagents": {"allowAgents": ["shangshu"]}},
   {"id": "zaochao",  "subagents": {"allowAgents": []}},
-  {"id": "hanlin", "subagents": {"allowAgents": ["taizi", "dalishi"]}},
-  {"id": "dalishi", "subagents": {"allowAgents": ["taizi", "hanlin"]}},
+  {"id": "hanlinyuan", "subagents": {"allowAgents": ["taizi", "dalishi"]}},
+  {"id": "dalishi", "subagents": {"allowAgents": ["taizi", "hanlinyuan"]}},
 ]
 
 agents_cfg = cfg.setdefault('agents', {})
@@ -320,7 +320,7 @@ PYEOF
 link_resources() {
   info "创建 data/scripts 软链接以确保 Agent 数据一致..."
   
-  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao hanlin dalishi)
+  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao hanlinyuan dalishi)
   LINKED=0
   for agent in "${AGENTS[@]}"; do
     ws="$OC_HOME/workspace-$agent"
@@ -408,7 +408,7 @@ sync_auth() {
     return
   fi
 
-  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao hanlin dalishi)
+  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao hanlinyuan dalishi)
   SYNCED=0
   for agent in "${AGENTS[@]}"; do
     AGENT_DIR="$OC_HOME/agents/$agent/agent"
@@ -474,8 +474,8 @@ banner
 check_deps
 backup_existing
 create_workspaces
-init_hanlin_assets
-init_hanlin_config
+init_hanlinyuan_assets
+init_hanlinyuan_config
 register_agents
 init_data
 link_resources

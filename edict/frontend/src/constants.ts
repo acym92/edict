@@ -32,7 +32,7 @@ export const DEPT_COLOR: Record<string, string> = {
 
 export const STATE_LABEL: Record<string, string> = {
   Inbox: '收件', Pending: '待处理', Taizi: '太子分拣', Zhongshu: '中书起草',
-  Menxia: '门下审议', Hanlin: '翰林研究', Assigned: '已派发', Doing: '执行中', Review: '待审查',
+  Menxia: '门下审议', Hanlin: '翰林院研究', Assigned: '已派发', Doing: '执行中', Review: '待审查',
   Done: '已完成', Blocked: '阻塞', Cancelled: '已取消', Next: '待执行',
 };
 
@@ -69,7 +69,7 @@ export const DEPTS = [
   { id: 'gongbu', label: '工部', emoji: '🔧', role: '工部尚书', rank: '正二品' },
   { id: 'libu_hr', label: '吏部', emoji: '👔', role: '吏部尚书', rank: '正二品' },
   { id: 'zaochao', label: '钦天监', emoji: '📰', role: '朝报官', rank: '正三品' },
-  { id: 'hanlin', label: '翰林院', emoji: '🧪', role: '翰林学士', rank: '正一品' },
+  { id: 'hanlinyuan', label: '翰林院', emoji: '🧪', role: '翰林院学士', rank: '正一品' },
 ];
 
 export const TEMPLATES: Template[] = [

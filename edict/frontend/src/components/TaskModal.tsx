@@ -22,7 +22,7 @@ const AGENT_LABELS: Record<string, string> = {
   gongbu: '工部',
   libu_hr: '吏部',
   zaochao: '钦天监',
-  hanlin: '翰林院',
+  hanlinyuan: '翰林院',
 };
 
 const NEXT_LABELS: Record<string, string> = {
