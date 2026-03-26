@@ -130,6 +130,7 @@ init_hanlin_assets() {
   local copied=0
 
   mkdir -p "$ws_skills"
+  mkdir -p /root/.openclaw/output
 
   # 复制 hanlin 顶层技能（排除聚合镜像目录 skills-codex*）
   for sk_path in "$src_root"/*; do
@@ -148,19 +149,27 @@ init_hanlin_assets() {
 # Hanlin Research Workflow
 
 当收到“论文”开头的任务时，按以下流程执行（支持 `论文/主题`、`论文/审稿`、`论文/修改`、`论文/方向`）：
-1. 读取 `skills/research-pipeline/SKILL.md` 获取全流程。
-2. 先执行 `research-lit` 做文献扫描与问题定义。
-3. 再执行 `research-review` + `research-refine` 做方法评审和改进。
-4. 产出 `paper-plan` 与 `paper-write` 所需材料，并形成结构化回报。
+1. 读取 `skills/research-pipeline/SKILL.md` 获取主流程。
+2. 先执行 `research-lit`：文献扫描 + 研究空白提炼。
+3. 再执行 `research-review` + `research-refine`：方案筛选与可行性评估。
+4. 生成实验计划并执行回归验证，沉淀 experiment_plan / runbook / experiment_log。
+5. 组织论文初稿（paper_draft），进入 auto review loop（最多4轮）。
+6. 完成修订后输出 final_paper，并在看板回写 Done。
+7. 所有文件统一输出到 `/root/.openclaw/output/<task_id>/`。
 WORKFLOW_EOF
 
   log "Hanlin 研究技能已初始化（$copied 个技能）"
+  log "Hanlin 产出目录已就绪: /root/.openclaw/output"
 }
 
 init_hanlin_config() {
   info "初始化 Hanlin 执行器/审查器配置..."
 
   local cfg_dir="$OC_HOME/agents/hanlin/agent"
+  if [ -d "$OC_HOME/agents/hanjia/agent" ]; then
+    cfg_dir="$OC_HOME/agents/hanjia/agent"
+    info "检测到 hanjia 目录，Hanlin 配置将写入: $cfg_dir"
+  fi
   local cfg_file="$cfg_dir/hanlin.json"
   mkdir -p "$cfg_dir"
 

@@ -13,7 +13,16 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(name)s] %(message
 BASE = pathlib.Path(__file__).parent.parent
 DATA = BASE / 'data'
 OPENCLAW_CFG = pathlib.Path.home() / '.openclaw' / 'openclaw.json'
-HANLIN_CFG = pathlib.Path.home() / '.openclaw' / 'agents' / 'hanlin' / 'agent' / 'hanlin.json'
+
+
+def _resolve_hanlin_cfg() -> pathlib.Path:
+    base = pathlib.Path.home() / '.openclaw' / 'agents'
+    hanjia = base / 'hanjia' / 'agent' / 'hanlin.json'
+    hanlin = base / 'hanlin' / 'agent' / 'hanlin.json'
+    return hanjia if hanjia.exists() else hanlin
+
+
+HANLIN_CFG = _resolve_hanlin_cfg()
 
 ID_LABEL = {
     'taizi':    {'label': '太子',   'role': '太子',     'duty': '飞书消息分拣与回奏',  'emoji': '🤴'},

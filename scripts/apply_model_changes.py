@@ -9,7 +9,16 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(name)s] %(message
 BASE = pathlib.Path(__file__).parent.parent
 DATA = BASE / 'data'
 OPENCLAW_CFG = pathlib.Path.home() / '.openclaw' / 'openclaw.json'
-HANLIN_CFG = pathlib.Path.home() / '.openclaw' / 'agents' / 'hanlin' / 'agent' / 'hanlin.json'
+
+
+def _resolve_hanlin_cfg() -> pathlib.Path:
+    base = pathlib.Path.home() / '.openclaw' / 'agents'
+    hanjia = base / 'hanjia' / 'agent' / 'hanlin.json'
+    hanlin = base / 'hanlin' / 'agent' / 'hanlin.json'
+    return hanjia if hanjia.exists() else hanlin
+
+
+HANLIN_CFG = _resolve_hanlin_cfg()
 PENDING = DATA / 'pending_model_changes.json'
 CHANGE_LOG = DATA / 'model_change_log.json'
 MAX_BACKUPS = 10
