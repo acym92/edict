@@ -69,7 +69,7 @@ bash scripts/run_loop.sh &
 python3 dashboard/server.py
 
 # 打开浏览器
-open http://127.0.0.1:7891
+open http://0.0.0.0:7891
 ```
 
 > 💡 **看板开箱即用**：`server.py` 内嵌 `dashboard/dashboard.html`，Docker 镜像包含预构建 React 前端
@@ -165,7 +165,7 @@ python3 scripts/sync_agent_config.py
 
 # 启动服务器验证 API
 python3 dashboard/server.py &
-curl -s http://localhost:7891/api/live-status | python3 -m json.tool | head -20
+curl -s http://0.0.0.0:7891/api/live-status | python3 -m json.tool | head -20
 ```
 
 ---

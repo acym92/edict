@@ -159,7 +159,7 @@ class DispatchWorker:
         env = os.environ.copy()
         env["EDICT_TASK_ID"] = task_id
         env["EDICT_TRACE_ID"] = trace_id
-        env["EDICT_API_URL"] = f"http://localhost:{settings.port}"
+        env["EDICT_API_URL"] = f"http://0.0.0.0:{settings.port}"
 
         log.debug(f"Executing: {' '.join(cmd)}")
 

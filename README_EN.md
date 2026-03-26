@@ -191,7 +191,7 @@ This is why Edict produces reliable results on complex tasks: there's a mandator
 ```bash
 docker run -p 7891:7891 cft0808/edict
 ```
-Open http://localhost:7891
+Open http://0.0.0.0:7891
 
 ### Full Install
 
@@ -220,7 +220,7 @@ bash scripts/run_loop.sh
 python3 dashboard/server.py
 
 # Open browser
-open http://127.0.0.1:7891
+open http://0.0.0.0:7891
 ```
 
 > 📖 See [Getting Started Guide](docs/getting-started.md) for detailed walkthrough.

@@ -376,7 +376,7 @@ def _get_llm_config() -> dict | None:
 
             # 跳过无 key 且非本地的 provider
             if not api_key or api_key == 'n/a':
-                if 'localhost' not in base_url and '127.0.0.1' not in base_url:
+                if '0.0.0.0' not in base_url and '0.0.0.0' not in base_url:
                     continue
 
             model_id = _pick_chat_model(prov.get('models', []))
@@ -384,7 +384,7 @@ def _get_llm_config() -> dict | None:
                 continue
 
             # 本地代理先探测是否可用
-            if 'localhost' in base_url or '127.0.0.1' in base_url:
+            if '0.0.0.0' in base_url or '0.0.0.0' in base_url:
                 try:
                     import urllib.request
                     probe = urllib.request.Request(base_url.rstrip('/') + '/models', method='GET')
