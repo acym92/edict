@@ -20,6 +20,7 @@ AGENT_META = {
     "gongbu": {"name": "工部", "role": "工程与技术实施", "icon": "🔧"},
     "xingbu": {"name": "刑部", "role": "规范与质量审查", "icon": "⚖️"},
     "bingbu": {"name": "兵部", "role": "安全与应急响应", "icon": "🛡️"},
+    "hanlin": {"name": "翰林院", "role": "论文研究与评审改进", "icon": "🧪"},
 }
 
 

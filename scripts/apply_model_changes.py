@@ -9,6 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(name)s] %(message
 BASE = pathlib.Path(__file__).parent.parent
 DATA = BASE / 'data'
 OPENCLAW_CFG = pathlib.Path.home() / '.openclaw' / 'openclaw.json'
+HANLIN_CFG = pathlib.Path.home() / '.openclaw' / 'agents' / 'hanlin' / 'agent' / 'hanlin.json'
 PENDING = DATA / 'pending_model_changes.json'
 CHANGE_LOG = DATA / 'model_change_log.json'
 MAX_BACKUPS = 10
@@ -42,6 +43,7 @@ def main():
     cfg = rj(OPENCLAW_CFG, {})
     agents_list = cfg.get('agents', {}).get('list', [])
     default_model = cfg.get('agents', {}).get('defaults', {}).get('model', {}).get('primary', '')
+    hanlin_cfg = rj(HANLIN_CFG, {})
 
     applied, errors = [], []
     for change in pending:
@@ -49,6 +51,12 @@ def main():
         new_model = change.get('model', '').strip()
         if not ag_id or not new_model:
             errors.append({'change': change, 'error': 'missing fields'})
+            continue
+        if ag_id in ('hanlin', 'hanlin'):
+            old = (((hanlin_cfg.get('env') or {}).get('ANTHROPIC_DEFAULT_OPUS_MODEL')) or '').strip()
+            hanlin_cfg.setdefault('env', {})
+            hanlin_cfg['env']['ANTHROPIC_DEFAULT_OPUS_MODEL'] = new_model
+            applied.append({'at': datetime.datetime.now().isoformat(), 'agentId': ag_id, 'oldModel': old, 'newModel': new_model})
             continue
         found = False
         for ag in agents_list:
@@ -70,6 +78,9 @@ def main():
         cleanup_backups()
         cfg['agents']['list'] = agents_list
         atomic_json_write(OPENCLAW_CFG, cfg)
+        if (hanlin_cfg.get('env') or {}).get('ANTHROPIC_DEFAULT_OPUS_MODEL'):
+            HANLIN_CFG.parent.mkdir(parents=True, exist_ok=True)
+            atomic_json_write(HANLIN_CFG, hanlin_cfg)
 
         log_data = rj(CHANGE_LOG, [])
         log_data.extend(applied)

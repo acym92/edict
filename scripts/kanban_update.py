@@ -44,6 +44,7 @@ from utils import now_iso  # noqa: E402
 
 STATE_ORG_MAP = {
     'Taizi': '太子', 'Zhongshu': '中书省', 'Menxia': '门下省', 'Assigned': '尚书省',
+    'Hanlin': '翰林院',
     'Doing': '执行中', 'Review': '尚书省', 'Done': '完成', 'Blocked': '阻塞',
 }
 
@@ -52,6 +53,7 @@ _STATE_AGENT_MAP = {
     'Zhongshu': 'zhongshu',
     'Menxia': 'menxia',
     'Assigned': 'shangshu',
+    'Hanlin': 'hanlin',
     'Review': 'shangshu',
     'Pending': 'zhongshu',
 }
@@ -59,7 +61,7 @@ _STATE_AGENT_MAP = {
 _ORG_AGENT_MAP = {
     '礼部': 'libu', '户部': 'hubu', '兵部': 'bingbu',
     '刑部': 'xingbu', '工部': 'gongbu', '吏部': 'libu_hr',
-    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu',
+    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlin',
 }
 
 _AGENT_LABELS = {
@@ -67,6 +69,7 @@ _AGENT_LABELS = {
     'zhongshu': '中书省', 'menxia': '门下省', 'shangshu': '尚书省',
     'libu': '礼部', 'hubu': '户部', 'bingbu': '兵部', 'xingbu': '刑部',
     'gongbu': '工部', 'libu_hr': '吏部', 'zaochao': '钦天监',
+    'hanlin': '翰林院',
 }
 
 MAX_PROGRESS_LOG = 100  # 单任务最大进展日志条数
@@ -215,17 +218,38 @@ def cmd_create(task_id, title, state, org, official, remark=None):
 # 额外: Blocked 可双向切换, Cancelled 从任意非终态可达, Next→Doing
 _VALID_TRANSITIONS = {
     'Pending':   {'Taizi', 'Cancelled'},
-    'Taizi':     {'Zhongshu', 'Cancelled'},
+    'Taizi':     {'Zhongshu', 'Hanlin', 'Cancelled'},
+    'Hanlin':    {'Done', 'Blocked', 'Cancelled'},
     'Zhongshu':  {'Menxia', 'Cancelled'},
     'Menxia':    {'Assigned', 'Zhongshu', 'Cancelled'},   # 封驳可回中书
     'Assigned':  {'Doing', 'Next', 'Blocked', 'Cancelled'},
     'Next':      {'Doing', 'Blocked', 'Cancelled'},
     'Doing':     {'Review', 'Blocked', 'Cancelled'},
     'Review':    {'Done', 'Menxia', 'Doing', 'Cancelled'},  # 可打回重审/重做
-    'Blocked':   {'Doing', 'Next', 'Assigned', 'Review', 'Cancelled'},  # 解除后回原位
+    'Blocked':   {'Doing', 'Next', 'Assigned', 'Review', 'Hanlin', 'Cancelled'},  # 解除后回原位
     'Done':      set(),       # 终态
     'Cancelled': set(),       # 终态
 }
+
+_HANLIN_ONLY_TRANSITIONS = {
+    'Pending': {'Taizi', 'Cancelled'},
+    'Taizi': {'Hanlin', 'Cancelled'},
+    'Hanlin': {'Done', 'Blocked', 'Cancelled'},
+    'Blocked': {'Hanlin', 'Cancelled'},
+    'Done': set(),
+    'Cancelled': set(),
+}
+
+
+def _is_hanlin_task(task: dict) -> bool:
+    title = str(task.get('title') or '')
+    org = str(task.get('org') or '')
+    if title.startswith('论文') or org == '翰林院':
+        return True
+    for fl in (task.get('flow_log') or []):
+        if fl.get('from') == '翰林院' or fl.get('to') == '翰林院':
+            return True
+    return False
 
 
 def cmd_state(task_id, new_state, now_text=None):
@@ -238,7 +262,10 @@ def cmd_state(task_id, new_state, now_text=None):
             log.error(f'任务 {task_id} 不存在')
             return tasks
         old_state[0] = t['state']
-        allowed = _VALID_TRANSITIONS.get(old_state[0])
+        if _is_hanlin_task(t):
+            allowed = _HANLIN_ONLY_TRANSITIONS.get(old_state[0], set())
+        else:
+            allowed = _VALID_TRANSITIONS.get(old_state[0])
         if allowed is not None and new_state not in allowed:
             log.warning(f'⚠️ 非法状态转换 {task_id}: {old_state[0]} → {new_state}（允许: {allowed}）')
             rejected[0] = True
@@ -266,6 +293,11 @@ def cmd_flow(task_id, from_dept, to_dept, remark):
         if not t:
             log.error(f'任务 {task_id} 不存在')
             return tasks
+        if _is_hanlin_task(t):
+            allowed_depts = {'皇上', '太子', '翰林院'}
+            if from_dept not in allowed_depts or to_dept not in allowed_depts:
+                log.warning(f'⚠️ Hanlin 专线任务禁止跨入其他部门: {from_dept} -> {to_dept}')
+                return tasks
         t.setdefault('flow_log', []).append({
             "at": now_iso(), "from": from_dept, "to": to_dept, "remark": clean_remark
         })
