@@ -152,13 +152,13 @@ function EdictCard({ task }: { task: Task }) {
           <button className="mini-act" onClick={(e) => handleAction('resume', e)}>▶ 恢复</button>
         )}
         {archived && !task.archived && (
-          <>
-            <button className="mini-act" onClick={handleArchive}>📦 归档</button>
-            <button className="mini-act danger" onClick={handleDelete}>🗑 删除</button>
-          </>
+          <button className="mini-act" onClick={handleArchive}>📦 归档</button>
         )}
         {task.archived && (
           <button className="mini-act" onClick={handleArchive}>📤 取消归档</button>
+        )}
+        {archived && (
+          <button className="mini-act danger" onClick={handleDelete}>🗑 删除</button>
         )}
       </div>
     </div>
