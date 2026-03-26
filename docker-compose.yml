@@ -12,4 +12,4 @@ services:
 
 # 启动: docker compose up
 # 如果在 ARM Mac (M1/M2/M3) 上运行，删除 platform 行即可
-# 访问: http://localhost:7891
+# 访问: http://0.0.0.0:7891

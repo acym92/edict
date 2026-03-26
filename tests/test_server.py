@@ -23,12 +23,12 @@ def test_healthz(tmp_path):
     from http.server import HTTPServer
     port = 18971
 
-    httpd = HTTPServer(('127.0.0.1', port), srv.Handler)
+    httpd = HTTPServer(('0.0.0.0', port), srv.Handler)
     t = threading.Thread(target=httpd.handle_request, daemon=True)
     t.start()
 
     time.sleep(0.1)
-    conn = HTTPConnection('127.0.0.1', port, timeout=5)
+    conn = HTTPConnection('0.0.0.0', port, timeout=5)
     conn.request('GET', '/healthz')
     resp = conn.getresponse()
     body = json.loads(resp.read())

@@ -351,7 +351,7 @@ compatibleAgents: [bingbu, xingbu, menxia]
 
 ❌ **禁止的 URL 类型:**
 - HTTP (非 HTTPS): `http://` 被拒绝
-- 本地模式 HTTP: `http://localhost/` (避免环回攻击)
+- 本地模式 HTTP: `http://0.0.0.0/` (避免环回攻击)
 - FTP/SSH: `ftp://`, `ssh://`
 
 ### 内容验证

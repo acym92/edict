@@ -302,7 +302,7 @@ Write-Host "     openclaw agents add taizi     # 按提示输入 Anthropic API K
 Write-Host "     .\install.ps1                 # 重新运行以同步到所有 Agent"
 Write-Host "  2. 启动数据刷新循环:  Start-Process python3 -ArgumentList 'scripts/run_loop.sh'"
 Write-Host "  3. 启动看板服务器:    python3 dashboard/server.py"
-Write-Host "  4. 打开看板:          http://127.0.0.1:7891"
+Write-Host "  4. 打开看板:          http://0.0.0.0:7891"
 Write-Host ""
 Warn "首次安装必须配置 API Key，否则 Agent 会报错"
 Info "文档: docs/getting-started.md"

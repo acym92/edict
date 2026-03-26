@@ -24,8 +24,8 @@ import pathlib
 log = logging.getLogger('kanban')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(name)s] %(message)s', datefmt='%H:%M:%S')
 
-# Edict API 地址 — 环境变量 > 默认 localhost:8000
-EDICT_API_URL = os.environ.get('EDICT_API_URL', 'http://localhost:8000')
+# Edict API 地址 — 环境变量 > 默认 0.0.0.0:8000
+EDICT_API_URL = os.environ.get('EDICT_API_URL', 'http://0.0.0.0:8000')
 
 # 是否启用 API 模式（EDICT_MODE=api | json | auto）
 EDICT_MODE = os.environ.get('EDICT_MODE', 'auto').lower()

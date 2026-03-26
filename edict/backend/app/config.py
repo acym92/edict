@@ -6,7 +6,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # ── Postgres ──
-    postgres_host: str = "localhost"
+    postgres_host: str = "0.0.0.0"
     postgres_port: int = 5432
     postgres_db: str = "edict"
     postgres_user: str = "edict"
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     database_url_override: str | None = None  # 直接设置 DATABASE_URL 环境变量时用
 
     # ── Redis ──
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://0.0.0.0:6379/0"
 
     # ── Server ──
     backend_host: str = "0.0.0.0"
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # ── OpenClaw ──
-    openclaw_gateway_url: str = "http://localhost:18789"
+    openclaw_gateway_url: str = "http://0.0.0.0:18789"
     openclaw_bin: str = "openclaw"
     openclaw_project_dir: str | None = None
 
