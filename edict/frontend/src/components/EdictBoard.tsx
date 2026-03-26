@@ -70,6 +70,16 @@ function EdictCard({ task }: { task: Task }) {
     } catch { toast('服务器连接失败', 'err'); }
   };
 
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`确定要删除 ${task.id} 及其关联引用记录吗？此操作不可恢复。`)) return;
+    try {
+      const r = await api.deleteTask(task.id);
+      if (r.ok) { toast(r.message || `${task.id} 已删除`); loadAll(); }
+      else toast(r.error || '删除失败', 'err');
+    } catch { toast('服务器连接失败', 'err'); }
+  };
+
   return (
     <div
       className={`edict-card${archived ? ' archived' : ''}`}
@@ -142,7 +152,10 @@ function EdictCard({ task }: { task: Task }) {
           <button className="mini-act" onClick={(e) => handleAction('resume', e)}>▶ 恢复</button>
         )}
         {archived && !task.archived && (
-          <button className="mini-act" onClick={handleArchive}>📦 归档</button>
+          <>
+            <button className="mini-act" onClick={handleArchive}>📦 归档</button>
+            <button className="mini-act danger" onClick={handleDelete}>🗑 删除</button>
+          </>
         )}
         {task.archived && (
           <button className="mini-act" onClick={handleArchive}>📤 取消归档</button>
