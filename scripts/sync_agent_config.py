@@ -13,6 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(name)s] %(message
 BASE = pathlib.Path(__file__).parent.parent
 DATA = BASE / 'data'
 OPENCLAW_CFG = pathlib.Path.home() / '.openclaw' / 'openclaw.json'
+HANLIN_CFG = pathlib.Path.home() / '.openclaw' / 'agents' / 'hanlin' / 'agent' / 'hanlin.json'
 
 ID_LABEL = {
     'taizi':    {'label': '太子',   'role': '太子',     'duty': '飞书消息分拣与回奏',  'emoji': '🤴'},
@@ -27,6 +28,7 @@ ID_LABEL = {
     'gongbu':   {'label': '工部',   'role': '工部尚书', 'duty': '工程交付与自动化',    'emoji': '🔧'},
     'libu_hr':  {'label': '吏部',   'role': '吏部尚书', 'duty': '人事/培训/Agent管理',  'emoji': '👔'},
     'zaochao':  {'label': '钦天监', 'role': '朝报官',   'duty': '每日新闻采集与简报',  'emoji': '📰'},
+    'hanlin': {'label': '翰林院', 'role': '翰林学士', 'duty': '论文研究与评审改进', 'emoji': '🧪'},
 }
 
 
@@ -60,6 +62,14 @@ def get_skills(workspace: str):
     except PermissionError as e:
         log.warning(f'Skills 目录访问受限: {e}')
     return skills
+
+
+def get_hanlin_executor_model(default_model: str) -> str:
+    try:
+        cfg = json.loads(HANLIN_CFG.read_text(encoding='utf-8'))
+        return (cfg.get('env') or {}).get('ANTHROPIC_DEFAULT_OPUS_MODEL') or default_model
+    except Exception:
+        return default_model
 
 
 def _collect_openclaw_models(cfg):
@@ -112,7 +122,11 @@ def main():
         result.append({
             'id': ag_id,
             'label': meta['label'], 'role': meta['role'], 'duty': meta['duty'], 'emoji': meta['emoji'],
-            'model': normalize_model(ag.get('model', default_model), default_model),
+            'model': (
+                get_hanlin_executor_model(default_model)
+                if ag_id == 'hanlin'
+                else normalize_model(ag.get('model', default_model), default_model)
+            ),
             'defaultModel': default_model,
             'workspace': workspace,
             'skills': get_skills(workspace),
@@ -130,6 +144,8 @@ def main():
                     'allowAgents': []},
         'libu_hr': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-libu_hr'),
                     'allowAgents': ['shangshu']},
+        'hanlin': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-hanlin'),
+                            'allowAgents': ['taizi']},
     }
     for ag_id, extra in EXTRA_AGENTS.items():
         if ag_id in seen_ids or ag_id not in ID_LABEL:
@@ -138,7 +154,11 @@ def main():
         result.append({
             'id': ag_id,
             'label': meta['label'], 'role': meta['role'], 'duty': meta['duty'], 'emoji': meta['emoji'],
-            'model': extra['model'],
+            'model': (
+                get_hanlin_executor_model(default_model)
+                if ag_id == 'hanlin'
+                else extra['model']
+            ),
             'defaultModel': default_model,
             'workspace': extra['workspace'],
             'skills': get_skills(extra['workspace']),
@@ -185,6 +205,7 @@ _SOUL_DEPLOY_MAP = {
     'gongbu': 'gongbu',
     'libu_hr': 'libu_hr',
     'zaochao': 'zaochao',
+    'hanlin': 'hanlin',
 }
 
 def sync_scripts_to_workspaces():

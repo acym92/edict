@@ -1,5 +1,5 @@
 import type { Task } from '../api';
-import { DEPT_COLOR, PIPE, PIPE_STATE_IDX, STATE_LABEL } from '../constants';
+import { DEPT_COLOR, HANLIN_PIPE, PIPE, PIPE_STATE_IDX, STATE_LABEL } from '../constants';
 
 export function deptColor(dept: string): string {
   return DEPT_COLOR[dept] || '#6a9eff';
@@ -33,6 +33,26 @@ export type PipeStatus = {
 };
 
 export function getPipeStatus(task: Task): PipeStatus[] {
+  const flowLog = task.flow_log || [];
+  const hasHanlin = (task.org || '') === '翰林院'
+    || flowLog.some((f) => (f.from || '') === '翰林院' || (f.to || '') === '翰林院')
+    || task.sourceMeta?.agentId === 'hanlin';
+  const hasClassic = flowLog.some((f) => ['中书省', '门下省', '尚书省', '礼部', '户部', '兵部', '刑部', '工部', '吏部'].includes(f.from || '')
+    || ['中书省', '门下省', '尚书省', '礼部', '户部', '兵部', '刑部', '工部', '吏部'].includes(f.to || ''));
+  const isHanlinFlow = (hasHanlin && !hasClassic)
+    || ((task.title || '').startsWith('论文') && !hasClassic);
+
+  if (isHanlinFlow) {
+    const terminal = ['Done', 'Cancelled'].includes(task.state);
+    const idx = terminal ? 3 : (
+      ['Inbox', 'Pending'].includes(task.state) ? 0 : (task.state === 'Taizi' ? 1 : 2)
+    );
+    return HANLIN_PIPE.map((stage, index) => ({
+      ...stage,
+      status: (index < idx ? 'done' : index === idx ? 'active' : 'pending') as PipeStatus['status'],
+    }));
+  }
+
   const stateIndex = PIPE_STATE_IDX[task.state] ?? 4;
   return PIPE.map((stage, index) => ({
     ...stage,
