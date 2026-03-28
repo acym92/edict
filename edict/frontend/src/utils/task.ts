@@ -43,10 +43,16 @@ export function getPipeStatus(task: Task): PipeStatus[] {
     || ((task.title || '').startsWith('论文') && !hasClassic);
 
   if (isHanlinFlow) {
-    const terminal = ['Done', 'Cancelled'].includes(task.state);
-    const idx = terminal ? 3 : (
-      ['Inbox', 'Pending'].includes(task.state) ? 0 : (task.state === 'Taizi' ? 1 : 2)
-    );
+    const idxByState: Record<string, number> = {
+      Inbox: 0,
+      Pending: 0,
+      Taizi: 1,
+      Hanlin: 2,
+      Dalishi: 3,
+      Done: 4,
+      Cancelled: 4,
+    };
+    const idx = idxByState[task.state] ?? 2;
     return HANLIN_PIPE.map((stage, index) => ({
       ...stage,
       status: (index < idx ? 'done' : index === idx ? 'active' : 'pending') as PipeStatus['status'],
