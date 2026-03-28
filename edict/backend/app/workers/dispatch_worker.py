@@ -160,6 +160,8 @@ class DispatchWorker:
         env["EDICT_TASK_ID"] = task_id
         env["EDICT_TRACE_ID"] = trace_id
         env["EDICT_API_URL"] = f"http://0.0.0.0:{settings.port}"
+        # 统一约定产出目录，便于各 Agent 将文件写入共享 output 而非各自 workspace。
+        env["EDICT_OUTPUT_DIR"] = f"/root/.openclaw/output/{task_id}"
 
         log.debug(f"Executing: {' '.join(cmd)}")
 

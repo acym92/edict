@@ -76,6 +76,12 @@ _AGENT_LABELS = {
 }
 
 MAX_PROGRESS_LOG = 100  # 单任务最大进展日志条数
+_PAPER_LANE_TITLE_RE = re.compile(r'^\s*论文\s*[\\/／]')
+
+
+def _is_paper_lane_title(title: str) -> bool:
+    """仅识别显式论文专线前缀（如：论文/主题、论文/修改）。"""
+    return bool(_PAPER_LANE_TITLE_RE.match((title or '').strip()))
 
 def load():
     return atomic_json_read(TASKS_FILE, [])
@@ -209,7 +215,7 @@ def cmd_create(task_id, title, state, org, official, remark=None):
             "flow_log": [{"at": now_iso(), "from": "皇上", "to": actual_org, "remark": clean_remark}],
             "updatedAt": now_iso()
         })
-        if title.startswith('论文') or state in ('Hanlin', 'Dalishi') or actual_org in ('翰林院', '大理寺'):
+        if _is_paper_lane_title(title) or state in ('Hanlin', 'Dalishi') or actual_org in ('翰林院', '大理寺'):
             tasks[0]['pipeline'] = 'paper'
         return tasks
     atomic_json_update(TASKS_FILE, modifier, [])
@@ -250,7 +256,7 @@ _HANLIN_ONLY_TRANSITIONS = {
 def _is_hanlinyuan_task(task: dict) -> bool:
     title = str(task.get('title') or '')
     org = str(task.get('org') or '')
-    if title.startswith('论文') or org == '翰林院':
+    if _is_paper_lane_title(title) or org == '翰林院':
         return True
     for fl in (task.get('flow_log') or []):
         if fl.get('from') == '翰林院' or fl.get('to') == '翰林院':
