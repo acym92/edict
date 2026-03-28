@@ -23,11 +23,13 @@ const AGENT_LABELS: Record<string, string> = {
   libu_hr: '吏部',
   zaochao: '钦天监',
   hanlinyuan: '翰林院',
+  dalishi: '大理寺',
 };
 
 const NEXT_LABELS: Record<string, string> = {
   Taizi: '中书省起草',
-  Hanlin: '完成',
+  Hanlin: '大理寺审稿',
+  Dalishi: '回奏太子',
   Zhongshu: '门下省审议',
   Menxia: '尚书省派发',
   Assigned: '开始执行',
@@ -162,7 +164,12 @@ export default function TaskModal() {
   };
 
   const doAdvance = async () => {
-    const next = NEXT_LABELS[task.state] || '下一步';
+    const stages = getPipeStatus(task);
+    const activeIdx = stages.findIndex((s) => s.status === 'active');
+    const inferredNext = activeIdx >= 0 && activeIdx < stages.length - 1
+      ? `${stages[activeIdx + 1].dept}（${stages[activeIdx + 1].action}）`
+      : '';
+    const next = inferredNext || NEXT_LABELS[task.state] || '下一步';
     const comment = prompt(`⏩ 手动推进 ${task.id}\n当前: ${task.state} → 下一步: ${next}\n\n请输入说明（可留空）：`);
     if (comment === null) return;
     try {
@@ -283,7 +290,7 @@ export default function TaskModal() {
                 <button className="btn-action" style={{ background: '#ff527022', color: '#ff5270', border: '1px solid #ff527044' }} onClick={() => doReview('reject')}>🚫 封驳</button>
               </>
             )}
-            {['Pending', 'Taizi', 'Zhongshu', 'Menxia', 'Assigned', 'Doing', 'Review', 'Next'].includes(task.state) && (
+            {['Pending', 'Taizi', 'Hanlin', 'Dalishi', 'Zhongshu', 'Menxia', 'Assigned', 'Doing', 'Review', 'Next'].includes(task.state) && (
               <button className="btn-action" style={{ background: '#7c5cfc18', color: '#7c5cfc', border: '1px solid #7c5cfc44' }} onClick={doAdvance}>⏩ 推进到下一步</button>
             )}
           </div>

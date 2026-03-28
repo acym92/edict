@@ -4,7 +4,7 @@ import { api, type Task } from '../api';
 // 排序权重
 const STATE_ORDER: Record<string, number> = {
   Doing: 0, Review: 1, Assigned: 2, Menxia: 3, Zhongshu: 4,
-  Hanlin: 4, Taizi: 5, Inbox: 6, Blocked: 7, Next: 8, Done: 9, Cancelled: 10,
+  Hanlin: 4, Dalishi: 5, Taizi: 6, Inbox: 7, Blocked: 8, Next: 9, Done: 10, Cancelled: 11,
 };
 
 function MiniPipe({ task }: { task: Task }) {

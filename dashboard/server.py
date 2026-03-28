@@ -2034,7 +2034,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
             f'旨意: {title}\n'
             f'⚠️ 看板已有此任务，请勿重复创建。\n'
             f'推荐路由: {hanlinyuan_hint}\n'
-            f'请按上述路由执行，并在完成后将任务状态更新为 Done。'
+            f'请按上述路由执行，完成论文后请将任务状态推进至 Dalishi，交由大理寺审稿监督。'
         ),
         'dalishi': (
             f'⚖️ 论文审稿监督任务已唤醒\n'
@@ -2134,6 +2134,99 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
     log.info(f'🚀 {task_id} 推进后自动派发 → {",".join(dispatch_targets)}')
 
 
+def notify_taizi_paper_done(task_id: str, task: dict, trigger='dalishi-paper-finished'):
+    """论文任务终审通过后，通知太子转报皇上。"""
+    title = task.get('title', '(无标题)')
+
+    _update_task_scheduler(task_id, lambda t, s: (
+        s.update({
+            'lastDispatchAt': now_iso(),
+            'lastDispatchStatus': 'queued',
+            'lastDispatchAgent': 'taizi',
+            'lastDispatchTrigger': trigger,
+        }),
+        _scheduler_add_flow(t, f'已入队派发：Done → taizi（{trigger}）', to='太子')
+    ))
+
+    def _do_notify():
+        try:
+            if not _check_gateway_alive():
+                log.warning(f'⚠️ {task_id} 完成通知跳过: Gateway 未启动')
+                _update_task_scheduler(task_id, lambda t, s: s.update({
+                    'lastDispatchAt': now_iso(),
+                    'lastDispatchStatus': 'gateway-offline',
+                    'lastDispatchAgent': 'taizi',
+                    'lastDispatchTrigger': trigger,
+                }))
+                return
+
+            _agent_cfg = read_json(DATA / 'agent_config.json', {})
+            _channel = (_agent_cfg.get('dispatchChannel') or 'feishu').strip()
+            msg = (
+                f'✅ 论文任务已完成终审，请太子回奏皇上\n'
+                f'任务ID: {task_id}\n'
+                f'旨意: {title}\n'
+                f'当前状态: Done（翰林院完成论文，大理寺审稿通过）\n'
+                f'请立即向皇上汇报：论文已完成，可查阅最终成果。'
+            )
+            cmd = ['openclaw', 'agent', '--agent', 'taizi', '-m', msg,
+                   '--deliver', '--channel', _channel, '--timeout', '300']
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=310)
+            if result.returncode == 0:
+                _update_task_scheduler(task_id, lambda t, s: (
+                    s.update({
+                        'lastDispatchAt': now_iso(),
+                        'lastDispatchStatus': 'success',
+                        'lastDispatchAgent': 'taizi',
+                        'lastDispatchTrigger': trigger,
+                        'lastDispatchError': '',
+                    }),
+                    _scheduler_add_flow(t, '派发成功：taizi（论文完成回奏）', to='太子')
+                ))
+                log.info(f'✅ {task_id} 论文完成通知已发送太子')
+                return
+
+            last_err = result.stderr[:200] if result.stderr else result.stdout[:200]
+            _update_task_scheduler(task_id, lambda t, s: (
+                s.update({
+                    'lastDispatchAt': now_iso(),
+                    'lastDispatchStatus': 'failed',
+                    'lastDispatchAgent': 'taizi',
+                    'lastDispatchTrigger': trigger,
+                    'lastDispatchError': last_err,
+                }),
+                _scheduler_add_flow(t, '派发失败：taizi（论文完成回奏）', to='太子')
+            ))
+            log.error(f'❌ {task_id} 论文完成通知太子失败: {last_err}')
+        except subprocess.TimeoutExpired:
+            _update_task_scheduler(task_id, lambda t, s: (
+                s.update({
+                    'lastDispatchAt': now_iso(),
+                    'lastDispatchStatus': 'timeout',
+                    'lastDispatchAgent': 'taizi',
+                    'lastDispatchTrigger': trigger,
+                    'lastDispatchError': 'timeout',
+                }),
+                _scheduler_add_flow(t, '派发超时：taizi（论文完成回奏）', to='太子')
+            ))
+            log.error(f'❌ {task_id} 论文完成通知太子超时')
+        except Exception as e:
+            _update_task_scheduler(task_id, lambda t, s: (
+                s.update({
+                    'lastDispatchAt': now_iso(),
+                    'lastDispatchStatus': 'error',
+                    'lastDispatchAgent': 'taizi',
+                    'lastDispatchTrigger': trigger,
+                    'lastDispatchError': str(e)[:200],
+                }),
+                _scheduler_add_flow(t, '派发异常：taizi（论文完成回奏）', to='太子')
+            ))
+            log.warning(f'⚠️ {task_id} 论文完成通知异常: {e}')
+
+    threading.Thread(target=_do_notify, daemon=True).start()
+    log.info(f'📣 {task_id} 已触发论文完成回奏通知 → taizi')
+
+
 def handle_advance_state(task_id, comment=''):
     """手动推进任务到下一阶段（解卡用），推进后自动派发对应 Agent。"""
     tasks = load_tasks()
@@ -2164,9 +2257,11 @@ def handle_advance_state(task_id, comment=''):
     task['updatedAt'] = now_iso()
     save_tasks(tasks)
 
-    # 🚀 推进后自动派发对应 Agent（Done 状态无需派发）
+    # 🚀 推进后自动派发对应 Agent（Done 状态默认无需派发）
     if next_state != 'Done':
         dispatch_for_state(task_id, task, next_state)
+    elif _is_hanlinyuan_task(task) and cur == 'Dalishi':
+        notify_taizi_paper_done(task_id, task)
 
     from_label = _STATE_LABELS.get(cur, cur)
     to_label = _STATE_LABELS.get(next_state, next_state)
