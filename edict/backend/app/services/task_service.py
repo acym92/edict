@@ -8,6 +8,7 @@
 
 import logging
 import uuid
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,6 +25,13 @@ from .event_bus import (
 )
 
 log = logging.getLogger("edict.task_service")
+
+_PAPER_LANE_TITLE_RE = re.compile(r"^\s*论文\s*[\\/／]")
+
+
+def _is_paper_lane_title(title: str) -> bool:
+    """仅识别显式论文专线前缀（如：论文/主题、论文/审稿）。"""
+    return bool(_PAPER_LANE_TITLE_RE.match((title or "").strip()))
 
 
 class TaskService:
@@ -47,10 +55,17 @@ class TaskService:
         """创建任务并发布 task.created 事件。"""
         now = datetime.now(timezone.utc)
         trace_id = str(uuid.uuid4())
+        normalized_title = (title or "").strip()
+
+        # 论文专线：如果标题以“论文”开头且调用方未显式指定初始状态，
+        # 则直接进入 Hanlin，避免误入常规中书链路。
+        if initial_state == TaskState.Taizi and _is_paper_lane_title(normalized_title):
+            initial_state = TaskState.Hanlin
+            assignee_org = assignee_org or "翰林院"
 
         task = Task(
             trace_id=trace_id,
-            title=title,
+            title=normalized_title or title,
             description=description,
             priority=priority,
             state=initial_state,
