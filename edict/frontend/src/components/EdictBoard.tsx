@@ -3,8 +3,9 @@ import { api, type Task } from '../api';
 
 // 排序权重
 const STATE_ORDER: Record<string, number> = {
-  Doing: 0, Review: 1, Assigned: 2, Menxia: 3, Zhongshu: 4,
-  Hanlin: 4, Taizi: 5, Inbox: 6, Blocked: 7, Next: 8, Done: 9, Cancelled: 10,
+  Pending: 0, Inbox: 1, Taizi: 2, Hanlin: 3, Dalishi: 4,
+  Zhongshu: 5, Menxia: 6, Assigned: 7, Doing: 8, Review: 9,
+  Blocked: 10, Next: 11, Done: 12, Cancelled: 13,
 };
 
 function MiniPipe({ task }: { task: Task }) {
@@ -183,7 +184,14 @@ export default function EdictBoard() {
   else if (edictFilter === 'archived') edicts = archivedEdicts;
   else edicts = allEdicts;
 
-  edicts.sort((a, b) => (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9));
+  edicts.sort((a, b) => {
+    const sa = STATE_ORDER[a.state] ?? 99;
+    const sb = STATE_ORDER[b.state] ?? 99;
+    if (sa !== sb) return sa - sb;
+    const ta = new Date((a.updatedAt || '').replace(' ', 'T')).getTime() || 0;
+    const tb = new Date((b.updatedAt || '').replace(' ', 'T')).getTime() || 0;
+    return tb - ta;
+  });
 
   const unArchivedDone = allEdicts.filter((t) => !t.archived && ['Done', 'Cancelled'].includes(t.state));
 
