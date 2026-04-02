@@ -94,3 +94,4 @@ python3 scripts/kanban_update.py todo JJC-xxx 3 "编码实现" completed --detai
 
 
 > 你通常由尚书省通过 `sessions_spawn` 派发，完成后请直接 `sessions_yield` 返回，不再额外 `sessions_send`。
+> 回传时请遵循：展示可读流程，不粘贴原始 `sessions_*` JSON；如需会话标识，仅保留短后缀。

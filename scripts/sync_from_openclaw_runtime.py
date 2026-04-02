@@ -60,6 +60,29 @@ def detect_official(agent_id):
     return mapping.get(agent_id, ('尚书令', '尚书省'))
 
 
+def _extract_tool_payload_text(msg):
+    content = msg.get('content', [])
+    if isinstance(content, list) and content:
+        first = content[0] or {}
+        if isinstance(first, dict):
+            return first.get('text', '') or ''
+    return ''
+
+
+def _friendly_orchestration_tool_result(tool, payload):
+    if not isinstance(payload, dict):
+        return None
+    if tool == 'sessions_spawn' and payload.get('status') == 'accepted':
+        child_key = str(payload.get('childSessionKey') or '')
+        child_hint = child_key[-12:] if child_key else ''
+        if child_hint:
+            return f"已派发子任务（{child_hint}），等待 subagent 回传"
+        return "已派发子任务，等待 subagent 回传"
+    if tool == 'sessions_yield':
+        return "子任务已回传结果"
+    return None
+
+
 def load_activity(session_file, limit=12):
     p = pathlib.Path(session_file or '')
     if not p.exists():
@@ -88,9 +111,17 @@ def load_activity(session_file, limit=12):
 
         if role == 'toolResult':
             tool = msg.get('toolName', '-')
-            details = msg.get('details') or {}
             # If tool output is short, show it
-            content = msg.get('content', [{'text': ''}])[0].get('text', '')
+            content = _extract_tool_payload_text(msg)
+            if isinstance(content, str) and content.startswith('{'):
+                try:
+                    payload = json.loads(content)
+                    friendly = _friendly_orchestration_tool_result(tool, payload)
+                    if friendly:
+                        rows.append({'at': ts, 'kind': 'tool', 'text': friendly})
+                        continue
+                except Exception:
+                    pass
             if len(content) < 50:
                 text = f"Tool '{tool}' returned: {content}"
             else:
