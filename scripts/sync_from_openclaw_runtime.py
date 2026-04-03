@@ -46,6 +46,8 @@ def detect_official(agent_id):
         'taizi':   ('储君', '太子'),
         'zhongshu': ('中书令', '中书省'),
         'menxia':  ('侍中', '门下省'),
+        'hanlinyuan': ('翰林学士', '翰林院'),
+        'dalisi': ('大理寺卿', '大理寺'),
         'shangshu': ('尚书令', '尚书省'),
         'hubu':    ('户部尚书', '户部'),
         'libu':    ('礼部尚书', '礼部'),

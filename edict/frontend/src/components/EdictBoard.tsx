@@ -1,4 +1,4 @@
-import { useStore, isEdict, isArchived, getPipeStatus, stateLabel, deptColor, PIPE } from '../store';
+import { useStore, isEdict, isArchived, getPipeStatus, stateLabel, deptColor } from '../store';
 import { api, type Task } from '../api';
 
 // 排序权重
@@ -6,6 +6,10 @@ const STATE_ORDER: Record<string, number> = {
   Doing: 0, Review: 1, Assigned: 2, Menxia: 3, Zhongshu: 4,
   Taizi: 5, Inbox: 6, Blocked: 7, Next: 8, Done: 9, Cancelled: 10,
 };
+
+function getCurrentStage(task: Task) {
+  return getPipeStatus(task).find((s) => s.status === 'active');
+}
 
 function MiniPipe({ task }: { task: Task }) {
   const stages = getPipeStatus(task);
@@ -32,7 +36,8 @@ function EdictCard({ task }: { task: Task }) {
   const hb = task.heartbeat || { status: 'unknown', label: '⚪' };
   const stCls = 'st-' + (task.state || '');
   const deptCls = 'dt-' + (task.org || '').replace(/\s/g, '');
-  const curStage = PIPE.find((_, i) => getPipeStatus(task)[i].status === 'active');
+  const stages = getPipeStatus(task);
+  const curStage = getCurrentStage(task);
   const todos = task.todos || [];
   const todoDone = todos.filter((x) => x.status === 'completed').length;
   const todoTotal = todos.length;

@@ -92,7 +92,7 @@ backup_existing() {
 create_workspaces() {
   info "创建 Agent Workspace..."
   
-  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao)
+  AGENTS=(taizi zhongshu menxia hanlinyuan dalisi shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao)
   for agent in "${AGENTS[@]}"; do
     ws="$OC_HOME/workspace-$agent"
     mkdir -p "$ws/skills"
@@ -135,10 +135,12 @@ cfg_path = pathlib.Path.home() / '.openclaw' / 'openclaw.json'
 cfg = json.loads(cfg_path.read_text())
 
 AGENTS = [
-  {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu"]}},
+  {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu", "hanlinyuan", "dalisi"]}},
     {"id": "zhongshu", "subagents": {"allowAgents": ["menxia", "shangshu"]}},
-    {"id": "menxia",   "subagents": {"allowAgents": ["shangshu", "zhongshu"]}},
-  {"id": "shangshu", "subagents": {"allowAgents": ["zhongshu", "menxia", "hubu", "libu", "bingbu", "xingbu", "gongbu", "libu_hr"]}},
+    {"id": "menxia",   "subagents": {"allowAgents": ["zhongshu", "shangshu"]}},
+    {"id": "hanlinyuan","subagents": {"allowAgents": ["taizi", "dalisi"]}},
+    {"id": "dalisi",   "subagents": {"allowAgents": ["taizi", "hanlinyuan"]}},
+  {"id": "shangshu", "subagents": {"allowAgents": ["zhongshu", "hubu", "libu", "bingbu", "xingbu", "gongbu", "libu_hr"]}},
     {"id": "hubu",     "subagents": {"allowAgents": ["shangshu"]}},
     {"id": "libu",     "subagents": {"allowAgents": ["shangshu"]}},
     {"id": "bingbu",   "subagents": {"allowAgents": ["shangshu"]}},
@@ -239,7 +241,7 @@ PYEOF
 link_resources() {
   info "创建 data/scripts 软链接以确保 Agent 数据一致..."
   
-  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao)
+  AGENTS=(taizi zhongshu menxia hanlinyuan dalisi shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao)
   LINKED=0
   for agent in "${AGENTS[@]}"; do
     ws="$OC_HOME/workspace-$agent"
@@ -327,7 +329,7 @@ sync_auth() {
     return
   fi
 
-  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao)
+  AGENTS=(taizi zhongshu menxia hanlinyuan dalisi shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao)
   SYNCED=0
   for agent in "${AGENTS[@]}"; do
     AGENT_DIR="$OC_HOME/agents/$agent/agent"

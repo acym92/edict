@@ -201,6 +201,6 @@ export {
   TPL_CATS,
   type TabKey,
 } from './constants';
-export { deptColor, getPipeStatus, isArchived, isEdict, isSession, stateLabel, type PipeStatus } from './utils/task';
+export { deptColor, getPipeStatus, isArchived, isEdict, isPaperTask, isSession, stateLabel, type PipeStatus } from './utils/task';
 export { esc, timeAgo } from './utils/time';
 export type { Template, TemplateParam } from './types/template';
