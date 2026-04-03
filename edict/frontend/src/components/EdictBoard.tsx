@@ -3,7 +3,7 @@ import { api, type Task } from '../api';
 
 // 排序权重
 const STATE_ORDER: Record<string, number> = {
-  Pending: 0, Inbox: 1, Taizi: 2, Hanlin: 3, Dalishi: 4,
+  Pending: 0, Inbox: 1, Taizi: 2,
   Zhongshu: 5, Menxia: 6, Assigned: 7, Doing: 8, Review: 9,
   Blocked: 10, Next: 11, Done: 12, Cancelled: 13,
 };
