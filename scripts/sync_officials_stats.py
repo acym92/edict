@@ -26,8 +26,6 @@ OFFICIALS = [
     {'id':'taizi',   'label':'太子',  'role':'太子',    'emoji':'🤴','rank':'储君'},
     {'id':'zhongshu','label':'中书省','role':'中书令',  'emoji':'📜','rank':'正一品'},
     {'id':'menxia',  'label':'门下省','role':'侍中',    'emoji':'🔍','rank':'正一品'},
-    {'id':'hanlinyuan','label':'翰林院','role':'翰林学士','emoji':'📚','rank':'正一品'},
-    {'id':'dalisi',  'label':'大理寺','role':'大理寺卿','emoji':'🏛️','rank':'正一品'},
     {'id':'shangshu','label':'尚书省','role':'尚书令',  'emoji':'📮','rank':'正一品'},
     {'id':'libu',    'label':'礼部',  'role':'礼部尚书','emoji':'📝','rank':'正二品'},
     {'id':'hubu',    'label':'户部',  'role':'户部尚书','emoji':'💰','rank':'正二品'},
