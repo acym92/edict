@@ -13,32 +13,13 @@ export const PIPE = [
   { key: 'Done', dept: '回奏', icon: '✅', action: '完成' },
 ] as const;
 
-export const PAPER_PIPE = [
-  { key: 'Inbox', dept: '皇上', icon: '👑', action: '下旨' },
-  { key: 'Taizi', dept: '太子', icon: '🤴', action: '分拣' },
-  { key: 'Zhongshu', dept: '翰林院', icon: '📚', action: '论文执行' },
-  { key: 'Menxia', dept: '大理寺', icon: '🏛️', action: '监督审议' },
-  { key: 'Assigned', dept: '太子', icon: '🤴', action: '协调回奏' },
-  { key: 'Done', dept: '回奏', icon: '✅', action: '完成' },
-] as const;
-
 export const PIPE_STATE_IDX: Record<string, number> = {
   Inbox: 0, Pending: 0, Taizi: 1, Zhongshu: 2, Menxia: 3,
   Assigned: 4, Doing: 5, Review: 6, Done: 7, Blocked: 5, Cancelled: 5, Next: 4,
 };
 
-export const PAPER_PIPE_STATE_IDX: Record<string, number> = {
-  Inbox: 0, Pending: 0,
-  Taizi: 1,
-  Zhongshu: 2,
-  Menxia: 3,
-  Assigned: 4, Doing: 4, Review: 4, Next: 4, Blocked: 4, Cancelled: 4,
-  Done: 5,
-};
-
 export const DEPT_COLOR: Record<string, string> = {
   太子: '#e8a040', 中书省: '#a07aff', 门下省: '#6a9eff', 尚书省: '#6aef9a',
-  翰林院: '#7c5cfc', 大理寺: '#2aa3aa',
   礼部: '#f5c842', 户部: '#ff9a6a', 兵部: '#ff5270', 刑部: '#cc4444',
   工部: '#44aaff', 吏部: '#9b59b6', 皇上: '#ffd700', 回奏: '#2ecc8a',
 };

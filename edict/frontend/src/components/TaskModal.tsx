@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useStore, getPipeStatus, deptColor, stateLabel, STATE_LABEL, isPaperTask } from '../store';
+import { useStore, getPipeStatus, deptColor, stateLabel, STATE_LABEL } from '../store';
 import { api } from '../api';
 import type {
   Task,
@@ -32,20 +32,6 @@ const NEXT_LABELS: Record<string, string> = {
   Doing: '进入审查',
   Review: '完成',
 };
-
-const PAPER_NEXT_LABELS: Record<string, string> = {
-  Taizi: '翰林院执行',
-  Zhongshu: '大理寺审议',
-  Menxia: '太子协调回奏',
-  Assigned: '太子协调回奏',
-  Doing: '太子协调回奏',
-  Review: '完成回奏',
-};
-
-function nextLabelForTask(task: Task): string {
-  const labels = isPaperTask(task) ? PAPER_NEXT_LABELS : NEXT_LABELS;
-  return labels[task.state] || '下一步';
-}
 
 function fmtStalled(sec: number): string {
   const v = Math.max(0, sec);
@@ -174,7 +160,7 @@ export default function TaskModal() {
   };
 
   const doAdvance = async () => {
-    const next = nextLabelForTask(task);
+    const next = NEXT_LABELS[task.state] || '下一步';
     const comment = prompt(`⏩ 手动推进 ${task.id}\n当前: ${task.state} → 下一步: ${next}\n\n请输入说明（可留空）：`);
     if (comment === null) return;
     try {
