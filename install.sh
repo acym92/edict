@@ -92,7 +92,7 @@ backup_existing() {
 create_workspaces() {
   info "创建 Agent Workspace..."
   
-  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao hanlinyuan dalishi)
+  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao)
   for agent in "${AGENTS[@]}"; do
     ws="$OC_HOME/workspace-$agent"
     mkdir -p "$ws/skills"
@@ -120,85 +120,6 @@ AGENTS_EOF
   done
 }
 
-# ── Step 1.5: 初始化论文研究 Agent 的技能与流程 ───────────────
-init_hanlinyuan_assets() {
-  info "初始化 Hanlin 论文研究技能..."
-
-  local ws="$OC_HOME/workspace-hanlinyuan"
-  local ws_skills="$ws/skills"
-  local src_root="$REPO_DIR/research/skills"
-  local copied=0
-
-  mkdir -p "$ws_skills"
-  mkdir -p /root/.openclaw/output
-
-  # 复制 hanlinyuan 顶层技能（排除聚合镜像目录 skills-codex*）
-  for sk_path in "$src_root"/*; do
-    [ -d "$sk_path" ] || continue
-    sk="$(basename "$sk_path")"
-    case "$sk" in
-      skills-codex* ) continue ;;
-    esac
-    rm -rf "$ws_skills/$sk"
-    cp -R "$sk_path" "$ws_skills/$sk"
-    copied=$((copied + 1))
-  done
-
-  # 研究工作流说明（初始化后可直接使用）
-  cat > "$ws/RESEARCH_WORKFLOW.md" << 'WORKFLOW_EOF'
-# Hanlin Research Workflow
-
-当收到“论文”开头的任务时，按以下流程执行（支持 `论文/主题`、`论文/审稿`、`论文/修改`、`论文/方向`）：
-1. 读取 `skills/research-pipeline/SKILL.md` 获取主流程。
-2. 先执行 `research-lit`：文献扫描 + 研究空白提炼。
-3. 再执行 `research-review` + `research-refine`：方案筛选与可行性评估。
-4. 生成实验计划并执行回归验证，沉淀 experiment_plan / runbook / experiment_log。
-5. 组织论文初稿（paper_draft），进入 auto review loop（最多4轮）。
-6. 完成修订后输出 final_paper，并在看板回写 Done。
-7. 所有文件统一输出到 `/root/.openclaw/output/<task_id>/`。
-WORKFLOW_EOF
-
-  log "Hanlin 研究技能已初始化（$copied 个技能）"
-  log "Hanlin 产出目录已就绪: /root/.openclaw/output"
-}
-
-init_hanlinyuan_config() {
-  info "初始化 Hanlin 执行器/审查器配置..."
-
-  local cfg_dir="$OC_HOME/agents/hanlinyuan/agent"
-  local cfg_file="$cfg_dir/hanlinyuan.json"
-  mkdir -p "$cfg_dir"
-
-  if [ ! -f "$cfg_file" ]; then
-    cat > "$cfg_file" << 'HANLIN_CFG_EOF'
-{
-  "env": {
-    "ANTHROPIC_AUTH_TOKEN": "your-executor-key",
-    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-6"
-  },
-  "mcpServers": {
-    "llm-chat": {
-      "command": "/usr/bin/python3",
-      "args": [
-        "__REPO_DIR__/research/mcp-servers/llm-chat/server.py"
-      ],
-      "env": {
-        "LLM_API_KEY": "your-reviewer-key",
-        "LLM_BASE_URL": "https://api.deepseek.com/v1",
-        "LLM_MODEL": "deepseek-chat"
-      }
-    }
-  }
-}
-HANLIN_CFG_EOF
-    sed -i "s|__REPO_DIR__|$REPO_DIR|g" "$cfg_file"
-    log "已创建 Hanlin 配置: $cfg_file"
-  else
-    info "已存在 Hanlin 配置，跳过覆盖: $cfg_file"
-  fi
-}
-
 # ── Step 2: 注册 Agents ─────────────────────────────────────
 register_agents() {
   info "注册三省六部 Agents..."
@@ -214,7 +135,7 @@ cfg_path = pathlib.Path.home() / '.openclaw' / 'openclaw.json'
 cfg = json.loads(cfg_path.read_text())
 
 AGENTS = [
-  {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu", "hanlinyuan", "dalishi"]}},
+  {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu"]}},
     {"id": "zhongshu", "subagents": {"allowAgents": ["menxia", "shangshu"]}},
     {"id": "menxia",   "subagents": {"allowAgents": ["shangshu", "zhongshu"]}},
   {"id": "shangshu", "subagents": {"allowAgents": ["hubu", "libu", "bingbu", "xingbu", "gongbu", "libu_hr"]}},
@@ -225,8 +146,6 @@ AGENTS = [
     {"id": "gongbu",   "subagents": {"allowAgents": ["shangshu"]}},
   {"id": "libu_hr",  "subagents": {"allowAgents": ["shangshu"]}},
   {"id": "zaochao",  "subagents": {"allowAgents": []}},
-  {"id": "hanlinyuan", "subagents": {"allowAgents": ["taizi", "dalishi"]}},
-  {"id": "dalishi", "subagents": {"allowAgents": ["taizi", "hanlinyuan"]}},
 ]
 
 agents_cfg = cfg.setdefault('agents', {})
@@ -320,7 +239,7 @@ PYEOF
 link_resources() {
   info "创建 data/scripts 软链接以确保 Agent 数据一致..."
   
-  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao hanlinyuan dalishi)
+  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao)
   LINKED=0
   for agent in "${AGENTS[@]}"; do
     ws="$OC_HOME/workspace-$agent"
@@ -408,7 +327,7 @@ sync_auth() {
     return
   fi
 
-  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao hanlinyuan dalishi)
+  AGENTS=(taizi zhongshu menxia shangshu hubu libu bingbu xingbu gongbu libu_hr zaochao)
   SYNCED=0
   for agent in "${AGENTS[@]}"; do
     AGENT_DIR="$OC_HOME/agents/$agent/agent"
@@ -474,8 +393,6 @@ banner
 check_deps
 backup_existing
 create_workspaces
-init_hanlinyuan_assets
-init_hanlinyuan_config
 register_agents
 init_data
 link_resources

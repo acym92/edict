@@ -13,29 +13,22 @@ export const PIPE = [
   { key: 'Done', dept: '回奏', icon: '✅', action: '完成' },
 ] as const;
 
-export const HANLIN_PIPE = [
-  { key: 'Inbox', dept: '皇上', icon: '👑', action: '下旨' },
-  { key: 'Taizi', dept: '太子', icon: '🤴', action: '分拣' },
-  { key: 'Hanlin', dept: '翰林院', icon: '🧪', action: '论文研究' },
-  { key: 'Dalishi', dept: '大理寺', icon: '⚖️', action: '审稿监督' },
-  { key: 'Done', dept: '回奏', icon: '✅', action: '转报皇上' },
-] as const;
 
 export const PIPE_STATE_IDX: Record<string, number> = {
   Inbox: 0, Pending: 0, Taizi: 1, Zhongshu: 2, Menxia: 3,
-  Hanlin: 2, Assigned: 4, Doing: 5, Review: 6, Done: 7, Blocked: 5, Cancelled: 5, Next: 4,
+  Assigned: 4, Doing: 5, Review: 6, Done: 7, Blocked: 5, Cancelled: 5, Next: 4,
 };
 
 export const DEPT_COLOR: Record<string, string> = {
   太子: '#e8a040', 中书省: '#a07aff', 门下省: '#6a9eff', 尚书省: '#6aef9a',
   礼部: '#f5c842', 户部: '#ff9a6a', 兵部: '#ff5270', 刑部: '#cc4444',
-  工部: '#44aaff', 吏部: '#9b59b6', 翰林院: '#37c3ff', 大理寺: '#ff7ac8',
+  工部: '#44aaff', 吏部: '#9b59b6',
   皇上: '#ffd700', 回奏: '#2ecc8a',
 };
 
 export const STATE_LABEL: Record<string, string> = {
   Inbox: '收件', Pending: '待处理', Taizi: '太子分拣', Zhongshu: '中书起草',
-  Menxia: '门下审议', Hanlin: '翰林院研究', Dalishi: '大理寺审稿', Assigned: '已派发', Doing: '执行中', Review: '待审查',
+  Menxia: '门下审议', Assigned: '已派发', Doing: '执行中', Review: '待审查',
   Done: '已完成', Blocked: '阻塞', Cancelled: '已取消', Next: '待执行',
 };
 
@@ -72,8 +65,6 @@ export const DEPTS = [
   { id: 'gongbu', label: '工部', emoji: '🔧', role: '工部尚书', rank: '正二品' },
   { id: 'libu_hr', label: '吏部', emoji: '👔', role: '吏部尚书', rank: '正二品' },
   { id: 'zaochao', label: '钦天监', emoji: '📰', role: '朝报官', rank: '正三品' },
-  { id: 'hanlinyuan', label: '翰林院', emoji: '🧪', role: '翰林院学士', rank: '正一品' },
-  { id: 'dalishi', label: '大理寺', emoji: '⚖️', role: '大理寺卿', rank: '正一品' },
 ];
 
 export const TEMPLATES: Template[] = [

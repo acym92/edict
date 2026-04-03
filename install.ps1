@@ -76,7 +76,7 @@ function Backup-Existing {
 function Create-Workspaces {
     Info "创建 Agent Workspace..."
 
-    $agents = @("taizi","zhongshu","menxia","shangshu","hubu","libu","bingbu","xingbu","gongbu","libu_hr","zaochao","hanlinyuan","dalishi")
+    $agents = @("taizi","zhongshu","menxia","shangshu","hubu","libu","bingbu","xingbu","gongbu","libu_hr","zaochao")
     foreach ($agent in $agents) {
         $ws = Join-Path $OC_HOME "workspace-$agent"
         New-Item -ItemType Directory -Path (Join-Path $ws "skills") -Force | Out-Null
@@ -122,7 +122,7 @@ cfg_path = pathlib.Path(os.environ['USERPROFILE']) / '.openclaw' / 'openclaw.jso
 cfg = json.loads(cfg_path.read_text(encoding='utf-8'))
 
 AGENTS = [
-    {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu", "hanlinyuan", "dalishi"]}},
+    {"id": "taizi",    "subagents": {"allowAgents": ["zhongshu"]}},
     {"id": "zhongshu", "subagents": {"allowAgents": ["menxia", "shangshu"]}},
     {"id": "menxia",   "subagents": {"allowAgents": ["shangshu", "zhongshu"]}},
     {"id": "shangshu", "subagents": {"allowAgents": ["hubu", "libu", "bingbu", "xingbu", "gongbu", "libu_hr"]}},
@@ -133,9 +133,7 @@ AGENTS = [
     {"id": "gongbu",   "subagents": {"allowAgents": ["shangshu"]}},
     {"id": "libu_hr",  "subagents": {"allowAgents": ["shangshu"]}},
     {"id": "zaochao",  "subagents": {"allowAgents": []}},
-    {"id": "hanlinyuan",   "subagents": {"allowAgents": ["taizi", "dalishi"]}},
-    {"id": "dalishi",  "subagents": {"allowAgents": ["taizi", "hanlinyuan"]}},
-]
+    ]
 
 agents_cfg = cfg.setdefault('agents', {})
 agents_list = agents_cfg.get('list', [])
@@ -188,7 +186,7 @@ function Init-Data {
 function Link-Resources {
     Info "创建 data/scripts 目录连接..."
     $linked = 0
-    $agents = @("taizi","zhongshu","menxia","shangshu","hubu","libu","bingbu","xingbu","gongbu","libu_hr","zaochao","hanlinyuan","dalishi")
+    $agents = @("taizi","zhongshu","menxia","shangshu","hubu","libu","bingbu","xingbu","gongbu","libu_hr","zaochao")
     foreach ($agent in $agents) {
         $ws = Join-Path $OC_HOME "workspace-$agent"
         New-Item -ItemType Directory -Path $ws -Force | Out-Null
