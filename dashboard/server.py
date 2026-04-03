@@ -710,6 +710,8 @@ _AGENT_DEPTS = [
     {'id':'taizi',   'label':'太子',  'emoji':'🤴', 'role':'太子',     'rank':'储君'},
     {'id':'zhongshu','label':'中书省','emoji':'📜', 'role':'中书令',   'rank':'正一品'},
     {'id':'menxia',  'label':'门下省','emoji':'🔍', 'role':'侍中',     'rank':'正一品'},
+    {'id':'hanlinyuan','label':'翰林院','emoji':'📚', 'role':'翰林学士', 'rank':'正一品'},
+    {'id':'dalisi',  'label':'大理寺','emoji':'🏛️', 'role':'大理寺卿', 'rank':'正一品'},
     {'id':'shangshu','label':'尚书省','emoji':'📮', 'role':'尚书令',   'rank':'正一品'},
     {'id':'hubu',    'label':'户部',  'emoji':'💰', 'role':'户部尚书', 'rank':'正二品'},
     {'id':'libu',    'label':'礼部',  'emoji':'📝', 'role':'礼部尚书', 'rank':'正二品'},
@@ -925,6 +927,7 @@ _ORG_AGENT_MAP = {
     '礼部': 'libu', '户部': 'hubu', '兵部': 'bingbu',
     '刑部': 'xingbu', '工部': 'gongbu', '吏部': 'libu_hr',
     '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu',
+    '翰林院': 'hanlinyuan', '大理寺': 'dalisi',
 }
 
 _TERMINAL_STATES = {'Done', 'Cancelled'}
@@ -1938,9 +1941,29 @@ _STATE_LABELS = {
 def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
     """推进/审批后自动派发对应 Agent（后台异步，不阻塞响应）。"""
     agent_id = _STATE_AGENT_MAP.get(new_state)
+    shadow_agent = None
+    shadow_msg = ''
     if agent_id is None and new_state in ('Doing', 'Next'):
         org = task.get('org', '')
         agent_id = _ORG_AGENT_MAP.get(org)
+    title = task.get('title', '') or ''
+    paper_task = title.strip().startswith('论文')
+    if paper_task:
+        if new_state == 'Taizi':
+            agent_id = 'hanlinyuan'
+            shadow_agent = 'dalisi'
+            shadow_msg = (
+                f'🏛️ 论文监督任务已启动\n'
+                f'任务ID: {task_id}\n'
+                f'论文旨意: {title}\n'
+                f'请全程监督翰林院输出并执行审议把关，最终将结论回传太子。'
+            )
+        elif new_state == 'Menxia':
+            agent_id = 'dalisi'
+        elif new_state in ('Zhongshu', 'Assigned', 'Doing', 'Review', 'Next'):
+            # 论文线路与三省六部隔离：中间状态由太子统一协调，不派发中书/尚书/六部
+            agent_id = 'taizi'
+
     if not agent_id:
         log.info(f'ℹ️ {task_id} 新状态 {new_state} 无对应 Agent，跳过自动派发')
         return
@@ -1974,12 +1997,26 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
             f'⚠️ 看板已有此任务记录，请勿重复创建。直接用 kanban_update.py state 更新状态。\n'
             f'请立即起草执行方案，走完完整三省流程（中书起草→门下审议→尚书派发→六部执行）。'
         ),
+        'hanlinyuan': (
+            f'📚 论文任务已到翰林院，请执行论文专线\n'
+            f'任务ID: {task_id}\n'
+            f'旨意: {title}\n'
+            f'⚠️ 看板已有此任务记录，请勿重复创建。直接用 kanban_update.py state 更新状态。\n'
+            f'请按论文流程产出内容，并提交大理寺审查。'
+        ),
         'menxia': (
             f'📋 中书省方案提交审议\n'
             f'任务ID: {task_id}\n'
             f'旨意: {title}\n'
             f'⚠️ 看板已有此任务，请勿重复创建。\n'
             f'请审议中书省方案，给出准奏或封驳意见。'
+        ),
+        'dalisi': (
+            f'🏛️ 翰林院提交论文内容待审\n'
+            f'任务ID: {task_id}\n'
+            f'旨意: {title}\n'
+            f'⚠️ 看板已有此任务，请勿重复创建。\n'
+            f'请审查论文内容，给出通过或退回意见。'
         ),
         'shangshu': (
             f'📮 门下省已准奏，请派发执行\n'
@@ -1996,9 +2033,18 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
         f'旨意: {title}\n'
         f'⚠️ 看板已有此任务，请勿重复创建。直接用 kanban_update.py 更新状态。'
     ))
+    if paper_task and agent_id == 'taizi':
+        msg = (
+            f'📚 论文专线协调通知\n'
+            f'任务ID: {task_id}\n'
+            f'旨意: {title}\n'
+            f'请仅协调翰林院与大理寺推进，不走三省六部链路。'
+        )
 
     def _do_dispatch():
         try:
+            if shadow_agent and shadow_msg:
+                wake_agent(shadow_agent, shadow_msg)
             if not _check_gateway_alive():
                 log.warning(f'⚠️ {task_id} 自动派发跳过: Gateway 未启动')
                 _update_task_scheduler(task_id, lambda t, s: s.update({
