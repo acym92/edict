@@ -366,6 +366,40 @@ def _is_hanlinyuan_task(task: dict) -> bool:
     return False
 
 
+def _merge_todos_preserve_completed(old_todos, new_todos):
+    """合并 todos，避免 completed 被后续 progress 误降级为 in-progress。"""
+    old_map = {}
+    for td in (old_todos or []):
+        key = str(td.get('id'))
+        if key:
+            old_map[key] = td
+
+    merged = []
+    for td in (new_todos or []):
+        item = dict(td)
+        key = str(item.get('id'))
+        prev = old_map.get(key)
+        if prev and prev.get('status') == 'completed' and item.get('status') != 'completed':
+            item['status'] = 'completed'
+        merged.append(item)
+    return merged
+
+
+def _auto_advance_when_todos_done(task: dict):
+    """当 todos 全部完成且仍处执行阶段时，自动推进到 Review。"""
+    todos = [td for td in (task.get('todos') or []) if isinstance(td, dict)]
+    if not todos:
+        return False
+    all_done = all((td.get('status') == 'completed') for td in todos)
+    cur_state = task.get('state')
+    if all_done and cur_state in ('Assigned', 'Next', 'Doing'):
+        task['state'] = 'Review'
+        task['now'] = '✅ 子任务已全部完成，进入审查'
+        _append_flow_dedup(task, '六部', '尚书省', '✅ 子任务全部完成，自动进入审查')
+        return True
+    return False
+
+
 def cmd_state(task_id, new_state, now_text=None):
     """更新任务状态（原子操作，含流转合法性校验）"""
     old_state = [None]
@@ -380,6 +414,15 @@ def cmd_state(task_id, new_state, now_text=None):
             allowed = _HANLIN_ONLY_TRANSITIONS.get(old_state[0], set())
         else:
             allowed = _VALID_TRANSITIONS.get(old_state[0])
+        caller = _infer_agent_id_from_runtime(t)
+        # 允许太子在任务已实质完成后直接收口为 Done，避免长期停留在执行态。
+        if (
+            new_state == 'Done'
+            and caller in ('taizi', 'main')
+            and old_state[0] in ('Assigned', 'Next', 'Doing', 'Review')
+        ):
+            allowed = set(allowed or set())
+            allowed.add('Done')
         if allowed is not None and new_state not in allowed:
             log.warning(f'⚠️ 非法状态转换 {task_id}: {old_state[0]} → {new_state}（允许: {allowed}）')
             rejected[0] = True
@@ -522,7 +565,10 @@ def cmd_progress(task_id, now_text, todos_pipe='', tokens=0, cost=0.0, elapsed=0
             return tasks
         t['now'] = clean
         if parsed_todos is not None:
-            t['todos'] = parsed_todos
+            t['todos'] = _merge_todos_preserve_completed(t.get('todos', []), parsed_todos)
+            _auto_advanced = _auto_advance_when_todos_done(t)
+            if _auto_advanced:
+                log.info(f'🧭 {task_id} todos 全部完成，自动推进到 Review')
         # 多 Agent 并行进展日志
         at = now_iso()
         agent_id = _infer_agent_id_from_runtime(t)
@@ -610,6 +656,7 @@ def cmd_todo(task_id, todo_id, title, status='not-started', detail=''):
                 item['detail'] = detail
             t['todos'].append(item)
         t['updatedAt'] = now_iso()
+        _auto_advance_when_todos_done(t)
         result_info[0] = sum(1 for td in t['todos'] if td.get('status') == 'completed')
         result_info[1] = len(t['todos'])
         return tasks
@@ -621,15 +668,24 @@ _CMD_MIN_ARGS = {
     'create': 6, 'state': 3, 'flow': 5, 'done': 2, 'block': 3, 'todo': 4, 'progress': 3,
 }
 
+_SHORT_USAGE = (
+    "用法: python3 scripts/kanban_update.py <cmd> [...]\n"
+    "常用: create/state/flow/done/todo/progress\n"
+    "查看完整帮助: python3 scripts/kanban_update.py help"
+)
+
 if __name__ == '__main__':
     args = sys.argv[1:]
     if not args:
-        print(__doc__)
+        print(_SHORT_USAGE)
         sys.exit(0)
     cmd = args[0]
+    if cmd in ('help', '--help', '-h'):
+        print(__doc__)
+        sys.exit(0)
     if cmd in _CMD_MIN_ARGS and len(args) < _CMD_MIN_ARGS[cmd]:
         print(f'错误："{cmd}" 命令至少需要 {_CMD_MIN_ARGS[cmd]} 个参数，实际 {len(args)} 个')
-        print(__doc__)
+        print(_SHORT_USAGE)
         sys.exit(1)
     if cmd == 'create':
         cmd_create(args[1], args[2], args[3], args[4], args[5], args[6] if len(args)>6 else None)

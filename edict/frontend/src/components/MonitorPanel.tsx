@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useStore, DEPTS, isEdict, stateLabel } from '../store';
+import { useStore, DEPTS, inferTaskDept, isEdict, stateLabel } from '../store';
 import { api, type OfficialInfo } from '../api';
 
 export default function MonitorPanel() {
@@ -15,6 +15,7 @@ export default function MonitorPanel() {
   }, [loadAgentsStatus]);
 
   const tasks = liveStatus?.tasks || [];
+  const deptLabels = DEPTS.map((d) => d.label);
   const activeTasks = tasks.filter((t) => isEdict(t) && t.state !== 'Done' && t.state !== 'Next');
 
   // Build official map
@@ -116,8 +117,8 @@ export default function MonitorPanel() {
       {/* Duty Grid */}
       <div className="duty-grid">
         {DEPTS.map((d) => {
-          const myTasks = activeTasks.filter((t) => t.org === d.label);
-          const doneTasks = tasks.filter((t) => isEdict(t) && t.org === d.label && t.state === 'Done');
+          const myTasks = activeTasks.filter((t) => inferTaskDept(t, deptLabels) === d.label);
+          const doneTasks = tasks.filter((t) => isEdict(t) && inferTaskDept(t, deptLabels) === d.label && t.state === 'Done');
           const latestDone = doneTasks
             .map((t) => Date.parse((t.updatedAt || t.eta || '').replace(' ', 'T')))
             .filter((ts) => Number.isFinite(ts))

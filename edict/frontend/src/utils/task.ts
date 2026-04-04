@@ -24,6 +24,25 @@ export function isArchived(task: Task): boolean {
   return task.archived || ['Done', 'Cancelled'].includes(task.state);
 }
 
+export function inferTaskDept(task: Task, deptLabels: string[]): string {
+  const org = task.org || '';
+  if (deptLabels.includes(org)) return org;
+
+  const flowLog = task.flow_log || [];
+  for (let i = flowLog.length - 1; i >= 0; i--) {
+    const to = flowLog[i]?.to || '';
+    if (deptLabels.includes(to)) return to;
+  }
+  for (let i = flowLog.length - 1; i >= 0; i--) {
+    const from = flowLog[i]?.from || '';
+    if (deptLabels.includes(from)) return from;
+  }
+
+  const now = task.now || '';
+  const m = now.match(/(礼部|户部|兵部|刑部|工部|吏部|中书省|门下省|尚书省|太子|翰林院|大理寺)/);
+  return m?.[1] || '';
+}
+
 export type PipeStatus = {
   key: string;
   dept: string;

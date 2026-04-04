@@ -145,13 +145,26 @@ added = 0
 for ag in AGENTS:
     ag_id = ag['id']
     ws = str(pathlib.Path(os.environ['USERPROFILE']) / f'.openclaw/workspace-{ag_id}')
+    agent_dir = str(pathlib.Path(os.environ['USERPROFILE']) / f'.openclaw/agents/{ag_id}/agent')
     if ag_id not in existing_ids:
-        entry = {'id': ag_id, 'workspace': ws, **{k:v for k,v in ag.items() if k!='id'}}
+        entry = {'id': ag_id, 'workspace': ws, 'agentDir': agent_dir, **{k:v for k,v in ag.items() if k!='id'}}
         agents_list.append(entry)
         added += 1
         print(f'  + added: {ag_id}')
     else:
-        print(f'  ~ exists: {ag_id} (skipped)')
+        entry = next((x for x in agents_list if x.get('id') == ag_id), None)
+        if isinstance(entry, dict):
+            changed = False
+            if not entry.get('workspace'):
+                entry['workspace'] = ws
+                changed = True
+            if not entry.get('agentDir'):
+                entry['agentDir'] = agent_dir
+                changed = True
+            if changed:
+                print(f'  ~ exists: {ag_id} (patched agentDir/workspace)')
+            else:
+                print(f'  ~ exists: {ag_id} (skipped)')
 
 agents_cfg['list'] = agents_list
 
