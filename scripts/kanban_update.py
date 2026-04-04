@@ -242,6 +242,11 @@ def _normalize_state_name(state: str) -> str:
 
 def cmd_create(task_id, title, state, org, official, remark=None):
     """新建任务（收旨时立即调用）"""
+    # 旨意任务 ID 统一规范：必须为 JJC- 前缀
+    if not str(task_id).startswith('JJC-'):
+        log.warning(f'⚠️ 拒绝创建 {task_id}：任务ID必须以 JJC- 开头')
+        print('[看板] 拒绝创建：任务ID必须以 JJC- 开头（例如 JJC-20260404-001）', flush=True)
+        return
     # 清洗标题（剥离元数据）
     title = _sanitize_title(title)
     # 旨意标题校验

@@ -947,7 +947,7 @@ function stateLabel(t){
 }
 
 /* ══ TASK CLASSIFICATION ══ */
-// 皇上的旨意：JJC-* 开头，有真实标题
+// 皇上的旨意：仅 JJC-* 开头
 function isEdict(t){ return /^JJC-/i.test(t.id||'') }
 function isPaperEdict(t){
   if((t.pipeline||'') === 'paper') return true;
