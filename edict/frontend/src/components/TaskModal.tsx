@@ -689,10 +689,12 @@ function ActivityEntryView({ entry: a }: { entry: ActivityEntry }) {
   }
 
   if (a.kind === 'tool_result') {
-    const ec = typeof a.exitCode === 'string' ? a.exitCode.toLowerCase() : a.exitCode;
+    const rawExitCode = a.exitCode as unknown;
+    const ec = typeof rawExitCode === 'string' ? rawExitCode.toLowerCase() : rawExitCode;
     const ok = ec === 0 || ec === null || ec === undefined
       || ec === 'ok' || ec === 'accepted' || ec === 'success'
-      || ec === 'succeeded' || ec === 'done' || ec === 'completed';
+      || ec === 'succeeded' || ec === 'done' || ec === 'completed'
+      || ec === 'yielded';
     return (
       <div className={`la-entry la-tool-result ${ok ? 'ok' : 'err'}`}>
         <span className="la-icon">{ok ? '✅' : '❌'}</span>
