@@ -110,7 +110,7 @@ class DispatchWorker:
             )
 
             try:
-                result = await self._call_openclaw(agent, message, task_id, trace_id)
+                result = await self._call_openclaw(agent, message, task_id, trace_id, state)
 
                 # 发布 agent 输出
                 await self.bus.publish(
@@ -147,6 +147,7 @@ class DispatchWorker:
         message: str,
         task_id: str,
         trace_id: str,
+        state: str,
     ) -> dict:
         """异步调用 OpenClaw CLI — 在线程池中执行。"""
         settings = get_settings()
@@ -160,6 +161,9 @@ class DispatchWorker:
         env["EDICT_TASK_ID"] = task_id
         env["EDICT_TRACE_ID"] = trace_id
         env["EDICT_API_URL"] = f"http://0.0.0.0:{settings.port}"
+        # 给 kanban_update.py 提供兜底状态，避免 agent 误发 `state <task_id>` 时硬失败
+        if state:
+            env["EDICT_DISPATCH_STATE"] = state
         # 统一约定产出目录，便于各 Agent 将文件写入共享 output 而非各自 workspace。
         env["EDICT_OUTPUT_DIR"] = f"/root/.openclaw/output/{task_id}"
 

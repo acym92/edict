@@ -19,6 +19,7 @@ export default function App() {
   const activeTab = useStore((s) => s.activeTab);
   const setActiveTab = useStore((s) => s.setActiveTab);
   const liveStatus = useStore((s) => s.liveStatus);
+  const agentsStatusData = useStore((s) => s.agentsStatusData);
   const countdown = useStore((s) => s.countdown);
   const loadAll = useStore((s) => s.loadAll);
 
@@ -40,15 +41,17 @@ export default function App() {
     if (key === 'sessions') return String(tasks.filter((t) => !isEdict(t)).length);
     if (key === 'memorials') return String(edicts.filter((t) => ['Done', 'Cancelled'].includes(t.state)).length);
     if (key === 'monitor') {
+      const realtimeActive = (agentsStatusData?.agents || []).filter((a) => a.id !== 'main' && a.status === 'running').length;
+      if (realtimeActive > 0) return realtimeActive + '活跃';
+
       const deptLabels = DEPTS.map((d) => d.label);
       const activeDeptLabels = new Set(
         tasks
-          .filter((t) => isEdict(t) && t.state === 'Doing')
+          .filter((t) => isEdict(t) && !['Done', 'Cancelled', 'Next'].includes(t.state))
           .map((t) => inferTaskDept(t, deptLabels))
           .filter((org): org is string => !!org),
       );
-      const activeDepts = activeDeptLabels.size;
-      return activeDepts + '活跃';
+      return activeDeptLabels.size + '活跃';
     }
     return '';
   };

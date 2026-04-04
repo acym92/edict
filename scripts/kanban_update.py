@@ -665,7 +665,7 @@ def cmd_todo(task_id, todo_id, title, status='not-started', detail=''):
     log.info(f'✅ {task_id} todo [{result_info[0]}/{result_info[1]}]: {todo_id} → {status}')
 
 _CMD_MIN_ARGS = {
-    'create': 6, 'state': 3, 'flow': 5, 'done': 2, 'block': 3, 'todo': 4, 'progress': 3,
+    'create': 6, 'state': 2, 'flow': 5, 'done': 2, 'block': 3, 'todo': 4, 'progress': 3,
 }
 
 _SHORT_USAGE = (
@@ -690,7 +690,17 @@ if __name__ == '__main__':
     if cmd == 'create':
         cmd_create(args[1], args[2], args[3], args[4], args[5], args[6] if len(args)>6 else None)
     elif cmd == 'state':
-        cmd_state(args[1], args[2], args[3] if len(args)>3 else None)
+        # 兼容 agent 偶发误调用：`state <task_id>`（缺 state 参数）
+        # 若 dispatch worker 通过环境变量提供了 EDICT_DISPATCH_STATE，则自动兜底。
+        fallback_state = (os.environ.get('EDICT_DISPATCH_STATE') or '').strip()
+        if len(args) == 2 and fallback_state:
+            cmd_state(args[1], fallback_state, f'自动兜底状态：{fallback_state}')
+        elif len(args) == 2 and not fallback_state:
+            print('错误："state" 缺少状态参数（例如 Doing / Menxia / Done）')
+            print('示例: python3 scripts/kanban_update.py state <task_id> <state> "<说明>"')
+            sys.exit(1)
+        else:
+            cmd_state(args[1], args[2], args[3] if len(args)>3 else None)
     elif cmd == 'flow':
         cmd_flow(args[1], args[2], args[3], args[4])
     elif cmd == 'done':
