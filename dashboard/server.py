@@ -753,7 +753,16 @@ _AGENT_DEPTS = [
     {'id':'zaochao', 'label':'钦天监','emoji':'📰', 'role':'朝报官',   'rank':'正三品'},
     {'id':'hanlinyuan', 'label':'翰林院','emoji':'🧪', 'role':'翰林院学士', 'rank':'正一品'},
     {'id':'dalishi', 'label':'大理寺','emoji':'⚖️', 'role':'大理寺卿', 'rank':'正一品'},
+    # 兼容历史拼写（dalisi），实际会在 get_agents_status 中归一到 dalishi，避免重复展示。
+    {'id':'dalisi', 'label':'大理寺','emoji':'⚖️', 'role':'大理寺卿', 'rank':'正一品'},
 ]
+
+
+def _canonical_agent_id(agent_id: str) -> str:
+    return {
+        'dalisi': 'dalishi',
+        'hanlin': 'hanlinyuan',
+    }.get(agent_id, agent_id)
 
 
 def _check_gateway_alive():
@@ -854,9 +863,10 @@ def get_agents_status():
     seen_ids = set()
     for dept in _AGENT_DEPTS:
         aid = dept['id']
-        if aid in seen_ids:
+        canonical_id = _canonical_agent_id(aid)
+        if canonical_id in seen_ids:
             continue
-        seen_ids.add(aid)
+        seen_ids.add(canonical_id)
 
         has_workspace = _check_agent_workspace(aid)
         last_ts, sess_count, is_busy = _get_agent_session_status(aid)
