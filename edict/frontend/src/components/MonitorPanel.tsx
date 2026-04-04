@@ -22,6 +22,10 @@ export default function MonitorPanel() {
   if (officialsData?.officials) {
     officialsData.officials.forEach((o) => { offMap[o.id] = o; });
   }
+  const rtMap: Record<string, { status: string; statusLabel: string; lastActive?: string }> = {};
+  (agentsStatusData?.agents || []).forEach((a) => {
+    rtMap[a.id] = { status: a.status, statusLabel: a.statusLabel, lastActive: a.lastActive };
+  });
 
   // Agent wake
   const handleWake = async (agentId: string) => {
@@ -116,9 +120,28 @@ export default function MonitorPanel() {
           const isActive = myTasks.some((t) => t.state === 'Doing');
           const isBlocked = myTasks.some((t) => t.state === 'Blocked');
           const off = offMap[d.id];
-          const hb = off?.heartbeat || { status: 'idle', label: '⚪' };
-          const dotCls = isBlocked ? 'blocked' : isActive ? 'busy' : hb.status === 'active' ? 'active' : 'idle';
-          const statusText = isBlocked ? '⚠️ 阻塞' : isActive ? '⚙️ 执行中' : hb.status === 'active' ? '🟢 活跃' : '⚪ 候命';
+          const rt = rtMap[d.id];
+          const rtRunning = rt?.status === 'running';
+          const rtOffline = rt?.status === 'offline';
+          const rtUnconfigured = rt?.status === 'unconfigured';
+          const dotCls = isBlocked
+            ? 'blocked'
+            : isActive
+              ? 'busy'
+              : rtRunning
+                ? 'active'
+                : 'idle';
+          const statusText = isBlocked
+            ? '⚠️ 阻塞'
+            : isActive
+              ? '⚙️ 执行中'
+              : rtRunning
+                ? '🟢 活跃'
+                : rtOffline
+                  ? '🔴 离线'
+                  : rtUnconfigured
+                    ? '⚪ 未配置'
+                    : '⚪ 候命';
           const cardCls = isBlocked ? 'blocked-card' : isActive ? 'active-card' : '';
 
           return (
@@ -160,7 +183,7 @@ export default function MonitorPanel() {
               </div>
               <div className="dc-footer">
                 <span className="dc-model">🤖 {off?.model_short || '待配置'}</span>
-                {off?.last_active && <span className="dc-la">⏰ {off.last_active}</span>}
+                {(rt?.lastActive || off?.last_active) && <span className="dc-la">⏰ {rt?.lastActive || off?.last_active}</span>}
               </div>
             </div>
           );

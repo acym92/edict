@@ -98,6 +98,26 @@ def find_task(tasks, task_id):
     return next((t for t in tasks if t.get('id') == task_id), None)
 
 
+def _remark_key(text: str) -> str:
+    txt = re.sub(r'[\u2700-\u27BF\U0001F300-\U0001FAFF]', '', str(text or ''))
+    txt = re.sub(r'\s+', '', txt)
+    return txt.strip().lower()
+
+
+def _append_flow_dedup(task: dict, from_dept: str, to_dept: str, remark: str, max_scan: int = 6):
+    logs = task.setdefault('flow_log', [])
+    rk = _remark_key(remark)
+    for prev in reversed(logs[-max_scan:]):
+        if (prev.get('from') or '') != (from_dept or ''):
+            continue
+        if (prev.get('to') or '') != (to_dept or ''):
+            continue
+        if _remark_key(prev.get('remark', '')) == rk:
+            return False
+    logs.append({"at": now_iso(), "from": from_dept, "to": to_dept, "remark": remark})
+    return True
+
+
 # 旨意标题最低要求
 _MIN_TITLE_LEN = 6
 _JUNK_TITLES = {
@@ -260,6 +280,51 @@ def _normalize_progress_text(now_text):
     return '；'.join(mapped)
 
 
+def _extract_spawn_agents(now_text):
+    """从原始 progress 文本中提取 sessions_spawn 事件。
+
+    返回: [{'agent_id': 'libu', 'event_key': '...'}]
+    event_key 用于在任务级做幂等，避免同一协议事件重复触发 flow 写入。
+    """
+    raw = (now_text or '').strip()
+    if not raw:
+        return []
+    found = []
+    seen_keys = set()
+    for ln in [x.strip() for x in raw.splitlines() if x.strip()]:
+        # 兼容多种协议/日志格式：
+        # 1) sessions_spawn{"childSessionKey":"agent:libu:subagent:..."}
+        # 2) dispatch: sessionKey=agent:libu:subagent:...
+        # 3) agent:libu:subagent:...（裸字符串）
+        candidates = []
+        for m in re.finditer(r'childSessionKey"\s*:\s*"agent:([a-zA-Z0-9_\-]+)', ln):
+            candidates.append(m.group(1))
+        for m in re.finditer(r'sessionKey=agent:([a-zA-Z0-9_\-]+):subagent', ln):
+            candidates.append(m.group(1))
+        for m in re.finditer(r'agent:([a-zA-Z0-9_\-]+):subagent', ln):
+            candidates.append(m.group(1))
+
+        # 兼容“【系统事件】拉起子代理会话：礼部/户部 ...”文案
+        label_match = re.search(r'拉起子代理会话[:：]\s*([^\s；,，。]+)', ln)
+        if label_match:
+            label = label_match.group(1).strip()
+            rev_map = {v: k for k, v in _AGENT_LABELS.items()}
+            aid_from_label = rev_map.get(label)
+            if aid_from_label:
+                candidates.append(aid_from_label)
+
+        for aid_raw in candidates:
+            aid = (aid_raw or '').strip()
+            if not aid:
+                continue
+            event_key = f'{aid}|{ln}'
+            if event_key in seen_keys:
+                continue
+            seen_keys.add(event_key)
+            found.append({'agent_id': aid, 'event_key': event_key})
+    return found
+
+
 # ── 状态流转合法性校验 ──
 # 只允许文档定义的状态路径:
 # Pending→Taizi→Zhongshu→Menxia→Assigned→Doing→Review→Done
@@ -349,9 +414,7 @@ def cmd_flow(task_id, from_dept, to_dept, remark):
             if from_dept not in allowed_depts or to_dept not in allowed_depts:
                 log.warning(f'⚠️ Hanlin 专线任务禁止跨入其他部门: {from_dept} -> {to_dept}')
                 return tasks
-        t.setdefault('flow_log', []).append({
-            "at": now_iso(), "from": from_dept, "to": to_dept, "remark": clean_remark
-        })
+        _append_flow_dedup(t, from_dept, to_dept, clean_remark)
         t['updatedAt'] = now_iso()
         return tasks
     atomic_json_update(TASKS_FILE, modifier, [])
@@ -369,10 +432,14 @@ def cmd_done(task_id, output_path='', summary=''):
         t['state'] = 'Done'
         t['output'] = output_path
         t['now'] = summary or '任务已完成'
-        t.setdefault('flow_log', []).append({
-            "at": now_iso(), "from": t.get('org', '执行部门'),
-            "to": "皇上", "remark": f"✅ 完成：{summary or '任务已完成'}"
-        })
+        done_remark = f"✅ 完成：{summary or '任务已完成'}"
+        from_org = t.get('org', '执行部门')
+        # 三省六部主流程统一：执行侧先回奏太子，再由太子转报皇上。
+        if (not _is_hanlinyuan_task(t)) and from_org not in ('太子', '皇上'):
+            _append_flow_dedup(t, from_org, '太子', done_remark)
+            _append_flow_dedup(t, '太子', '皇上', '📨 太子转报皇上：任务已完成')
+        else:
+            _append_flow_dedup(t, from_org, '皇上', done_remark)
         t['updatedAt'] = now_iso()
         return tasks
     atomic_json_update(TASKS_FILE, modifier, [])
@@ -410,6 +477,7 @@ def cmd_progress(task_id, now_text, todos_pipe='', tokens=0, cost=0.0, elapsed=0
     elapsed: 可选，本次耗时（秒）
     """
     clean = _sanitize_remark(_normalize_progress_text(now_text))
+    spawned_agents = _extract_spawn_agents(now_text)
     # 解析 todos_pipe
     parsed_todos = None
     if todos_pipe:
@@ -459,6 +527,31 @@ def cmd_progress(task_id, now_text, todos_pipe='', tokens=0, cost=0.0, elapsed=0
         at = now_iso()
         agent_id = _infer_agent_id_from_runtime(t)
         agent_label = _AGENT_LABELS.get(agent_id, agent_id)
+        if spawned_agents:
+            seen = t.setdefault('_spawn_event_keys', [])
+            if not isinstance(seen, list):
+                seen = []
+            from_dept = agent_label or t.get('org', '')
+            changed = False
+            for sp in spawned_agents:
+                child_aid = sp.get('agent_id', '')
+                event_key = sp.get('event_key', '')
+                if not child_aid or not event_key or event_key in seen:
+                    continue
+                child_label = _AGENT_LABELS.get(child_aid, child_aid)
+                if not child_label:
+                    continue
+                _append_flow_dedup(
+                    t,
+                    from_dept,
+                    child_label,
+                    f'🤝 子代理协同：{from_dept} 拉起 {child_label}',
+                )
+                seen.append(event_key)
+                changed = True
+            if changed:
+                # 防止字段无限增长，只保留最近 120 条事件 key。
+                t['_spawn_event_keys'] = seen[-120:]
         log_todos = parsed_todos if parsed_todos is not None else t.get('todos', [])
         log_entry = {
             'at': at, 'agent': agent_id, 'agentLabel': agent_label,

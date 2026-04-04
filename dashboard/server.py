@@ -92,6 +92,35 @@ def save_tasks(tasks):
     threading.Thread(target=_refresh, daemon=True).start()
 
 
+def _flow_remark_key(remark: str) -> str:
+    """归一化流转备注，便于去重（忽略 emoji/空白 差异）。"""
+    if not remark:
+        return ''
+    txt = re.sub(r'[\u2700-\u27BF\U0001F300-\U0001FAFF]', '', str(remark))
+    txt = re.sub(r'\s+', '', txt)
+    return txt.strip().lower()
+
+
+def _append_flow_dedup(task: dict, from_dept: str, to_dept: str, remark: str, *, max_scan: int = 6) -> bool:
+    """追加 flow_log，若最近存在同源同目的同语义记录则跳过。"""
+    logs = task.setdefault('flow_log', [])
+    new_key = _flow_remark_key(remark)
+    for prev in reversed(logs[-max_scan:]):
+        if (prev.get('from') or '') != (from_dept or ''):
+            continue
+        if (prev.get('to') or '') != (to_dept or ''):
+            continue
+        if _flow_remark_key(prev.get('remark', '')) == new_key:
+            return False
+    logs.append({
+        'at': now_iso(),
+        'from': from_dept,
+        'to': to_dept,
+        'remark': remark,
+    })
+    return True
+
+
 def handle_task_action(task_id, action, reason):
     """Stop/cancel/resume a task from the dashboard."""
     tasks = load_tasks()
@@ -688,12 +717,12 @@ def handle_review_action(task_id, action, comment=''):
     else:
         return {'ok': False, 'error': f'未知操作: {action}'}
 
-    task.setdefault('flow_log', []).append({
-        'at': now_iso(),
-        'from': '门下省' if task.get('state') != 'Done' else '皇上',
-        'to': to_dept,
-        'remark': remark
-    })
+    _append_flow_dedup(
+        task,
+        '门下省' if task.get('state') != 'Done' else '皇上',
+        to_dept,
+        remark,
+    )
     _scheduler_mark_progress(task, f'审议动作 {action} -> {task.get("state")}')
     task['updatedAt'] = now_iso()
     save_tasks(tasks)
@@ -727,6 +756,13 @@ _AGENT_DEPTS = [
 ]
 
 
+def _canonical_agent_id(agent_id: str) -> str:
+    return {
+        'dalisi': 'dalishi',
+        'hanlin': 'hanlinyuan',
+    }.get(agent_id, agent_id)
+
+
 def _check_gateway_alive():
     """检测 Gateway 进程是否在运行。"""
     try:
@@ -751,43 +787,62 @@ def _get_agent_session_status(agent_id):
     """读取 Agent 的 sessions.json 获取活跃状态。
     返回: (last_active_ts_ms, session_count, is_busy)
     """
-    sessions_file = OCLAW_HOME / 'agents' / agent_id / 'sessions' / 'sessions.json'
-    if not sessions_file.exists():
-        return 0, 0, False
-    try:
-        data = json.loads(sessions_file.read_text())
-        if not isinstance(data, dict):
-            return 0, 0, False
-        session_count = len(data)
-        last_ts = 0
-        for v in data.values():
-            ts = v.get('updatedAt', 0)
-            if isinstance(ts, (int, float)) and ts > last_ts:
-                last_ts = ts
-        now_ms = int(datetime.datetime.now().timestamp() * 1000)
-        age_ms = now_ms - last_ts if last_ts else 9999999999
-        is_busy = age_ms <= 2 * 60 * 1000  # 2分钟内视为正在工作
-        return last_ts, session_count, is_busy
-    except Exception:
-        return 0, 0, False
+    alias_map = {
+        'dalishi': ['dalishi', 'dalisi'],
+        'hanlinyuan': ['hanlinyuan', 'hanlin'],
+    }
+    aliases = alias_map.get(agent_id, [agent_id])
+    total_sessions = 0
+    max_last_ts = 0
+    for aid in aliases:
+        sessions_file = OCLAW_HOME / 'agents' / aid / 'sessions' / 'sessions.json'
+        if not sessions_file.exists():
+            continue
+        try:
+            data = json.loads(sessions_file.read_text())
+            if not isinstance(data, dict):
+                continue
+            total_sessions += len(data)
+            for v in data.values():
+                ts = v.get('updatedAt', 0)
+                if isinstance(ts, (int, float)) and ts > max_last_ts:
+                    max_last_ts = ts
+        except Exception:
+            continue
+    now_ms = int(datetime.datetime.now().timestamp() * 1000)
+    age_ms = now_ms - max_last_ts if max_last_ts else 9999999999
+    is_busy = age_ms <= 2 * 60 * 1000  # 2分钟内视为正在工作
+    return max_last_ts, total_sessions, is_busy
 
 
 def _check_agent_process(agent_id):
     """检测是否有该 Agent 的 openclaw-agent 进程正在运行。"""
+    alias_map = {
+        'dalishi': ['dalishi', 'dalisi'],
+        'hanlinyuan': ['hanlinyuan', 'hanlin'],
+    }
+    aliases = alias_map.get(agent_id, [agent_id])
     try:
-        result = subprocess.run(
-            ['pgrep', '-f', f'openclaw.*--agent.*{agent_id}'],
-            capture_output=True, text=True, timeout=5
-        )
-        return result.returncode == 0
+        for aid in aliases:
+            result = subprocess.run(
+                ['pgrep', '-f', f'openclaw.*--agent.*{aid}'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                return True
+        return False
     except Exception:
         return False
 
 
 def _check_agent_workspace(agent_id):
     """检查 Agent 工作空间是否存在。"""
-    ws = OCLAW_HOME / f'workspace-{agent_id}'
-    return ws.is_dir()
+    alias_map = {
+        'dalishi': ['dalishi', 'dalisi'],
+        'hanlinyuan': ['hanlinyuan', 'hanlin'],
+    }
+    aliases = alias_map.get(agent_id, [agent_id])
+    return any((OCLAW_HOME / f'workspace-{aid}').is_dir() for aid in aliases)
 
 
 def get_agents_status():
@@ -806,9 +861,10 @@ def get_agents_status():
     seen_ids = set()
     for dept in _AGENT_DEPTS:
         aid = dept['id']
-        if aid in seen_ids:
+        canonical_id = _canonical_agent_id(aid)
+        if canonical_id in seen_ids:
             continue
-        seen_ids.add(aid)
+        seen_ids.add(canonical_id)
 
         has_workspace = _check_agent_workspace(aid)
         last_ts, sess_count, is_busy = _get_agent_session_status(aid)
@@ -2281,12 +2337,7 @@ def handle_advance_state(task_id, comment=''):
 
     task['state'] = next_state
     task['now'] = f'⬇️ 手动推进：{remark}'
-    task.setdefault('flow_log', []).append({
-        'at': now_iso(),
-        'from': from_dept,
-        'to': to_dept,
-        'remark': f'⬇️ 手动推进：{remark}'
-    })
+    _append_flow_dedup(task, from_dept, to_dept, f'⬇️ 手动推进：{remark}')
     _scheduler_mark_progress(task, f'手动推进 {cur} -> {next_state}')
     task['updatedAt'] = now_iso()
     save_tasks(tasks)
