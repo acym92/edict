@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useStore, TAB_DEFS, startPolling, stopPolling, isEdict, isArchived } from './store';
+import { useStore, TAB_DEFS, DEPTS, startPolling, stopPolling, inferTaskDept, isEdict, isArchived } from './store';
 import EdictBoard from './components/EdictBoard';
 import MonitorPanel from './components/MonitorPanel';
 import OfficialPanel from './components/OfficialPanel';
@@ -40,7 +40,14 @@ export default function App() {
     if (key === 'sessions') return String(tasks.filter((t) => !isEdict(t)).length);
     if (key === 'memorials') return String(edicts.filter((t) => ['Done', 'Cancelled'].includes(t.state)).length);
     if (key === 'monitor') {
-      const activeDepts = tasks.filter((t) => isEdict(t) && t.state === 'Doing').length;
+      const deptLabels = DEPTS.map((d) => d.label);
+      const activeDeptLabels = new Set(
+        tasks
+          .filter((t) => isEdict(t) && t.state === 'Doing')
+          .map((t) => inferTaskDept(t, deptLabels))
+          .filter((org): org is string => !!org),
+      );
+      const activeDepts = activeDeptLabels.size;
       return activeDepts + '活跃';
     }
     return '';
