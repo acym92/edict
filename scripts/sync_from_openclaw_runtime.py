@@ -5,6 +5,7 @@ import time
 import datetime
 import traceback
 import logging
+import shutil
 from file_lock import atomic_json_write, atomic_json_read
 
 log = logging.getLogger('sync_runtime')
@@ -15,6 +16,62 @@ DATA = BASE / 'data'
 DATA.mkdir(exist_ok=True)
 SYNC_STATUS = DATA / 'sync_status.json'
 SESSIONS_ROOT = pathlib.Path.home() / '.openclaw' / 'agents'
+
+MIRROR_SESSIONS_ROOT = DATA / 'agent_sessions'
+MIRROR_SESSIONS_ROOT.mkdir(exist_ok=True)
+MAX_MIRROR_JSONL_PER_AGENT = 5
+MAX_AGENTS_PER_CYCLE = 8
+
+
+def _latest_agent_dirs(limit: int = MAX_AGENTS_PER_CYCLE):
+    """按 sessions.json 最近更新时间选出本轮需要同步的 agent 目录。"""
+    if not SESSIONS_ROOT.exists():
+        return []
+    cands = []
+    for agent_dir in SESSIONS_ROOT.iterdir():
+        if not agent_dir.is_dir():
+            continue
+        sessions_file = agent_dir / 'sessions' / 'sessions.json'
+        if not sessions_file.exists():
+            continue
+        try:
+            mtime = sessions_file.stat().st_mtime
+        except Exception:
+            mtime = 0
+        cands.append((mtime, agent_dir))
+    cands.sort(key=lambda x: x[0], reverse=True)
+    return [d for _, d in cands[:max(1, int(limit))]]
+
+
+def mirror_agent_session_files(agent_id: str) -> int:
+    """将 agent 最近会话 jsonl 镜像到 data/agent_sessions/{agent_id}/，供前端 API 兜底读取。"""
+    src_dir = SESSIONS_ROOT / agent_id / 'sessions'
+    if not src_dir.exists():
+        return 0
+    dst_dir = MIRROR_SESSIONS_ROOT / agent_id
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    jsonl_files = sorted(src_dir.glob('*.jsonl'), key=lambda f: f.stat().st_mtime, reverse=True)
+    copied = 0
+    keep_names = set()
+    for sf in jsonl_files[:MAX_MIRROR_JSONL_PER_AGENT]:
+        try:
+            target = dst_dir / sf.name
+            shutil.copy2(sf, target)
+            copied += 1
+            keep_names.add(sf.name)
+        except Exception:
+            continue
+
+    # 清理过旧镜像，避免无限增长
+    for old in dst_dir.glob('*.jsonl'):
+        if old.name not in keep_names:
+            try:
+                old.unlink()
+            except Exception:
+                pass
+
+    return copied
 
 
 def write_status(**kwargs):
@@ -245,29 +302,26 @@ def main():
     try:
         tasks = []
         scan_files = 0
+        mirrored_jsonl = 0
 
-        if SESSIONS_ROOT.exists():
-            for agent_dir in sorted(SESSIONS_ROOT.iterdir()):
-                if not agent_dir.is_dir():
-                    continue
-                agent_id = agent_dir.name
-                sessions_file = agent_dir / 'sessions' / 'sessions.json'
-                if not sessions_file.exists():
-                    continue
-                scan_files += 1
+        for agent_dir in _latest_agent_dirs():
+            agent_id = agent_dir.name
+            sessions_file = agent_dir / 'sessions' / 'sessions.json'
+            scan_files += 1
+            mirrored_jsonl += mirror_agent_session_files(agent_id)
 
-                try:
-                    raw = json.loads(sessions_file.read_text())
-                except Exception:
-                    continue
+            try:
+                raw = json.loads(sessions_file.read_text())
+            except Exception:
+                continue
 
-                if not isinstance(raw, dict):
-                    continue
+            if not isinstance(raw, dict):
+                continue
 
-                for session_key, row in raw.items():
-                    if not isinstance(row, dict):
-                        continue
-                    tasks.append(build_task(agent_id, session_key, row, now_ms))
+            for session_key, row in raw.items():
+                if not isinstance(row, dict):
+                    continue
+                tasks.append(build_task(agent_id, session_key, row, now_ms))
 
         # merge mission control tasks (最小接入)
         mc_tasks_file = DATA / 'mission_control_tasks.json'
@@ -361,6 +415,8 @@ def main():
             source='openclaw_runtime_sessions',
             recordCount=len(tasks),
             scannedSessionFiles=scan_files,
+            scannedAgents=scan_files,
+            mirroredSessionJsonl=mirrored_jsonl,
             missingFields={},
             error=None,
         )
