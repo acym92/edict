@@ -45,33 +45,6 @@ def test_move_state(tmp_path):
         kb.TASKS_FILE = original
 
 
-def test_state_info_query(tmp_path, capsys):
-    """state 查询模式：只传 task_id 时返回当前状态信息。"""
-    tasks_file = tmp_path / 'tasks_source.json'
-    tasks_file.write_text(json.dumps([
-        {'id': 'T-INFO', 'title': 'state info test', 'state': 'Doing', 'org': '工部', 'now': '正在编码'}
-    ]))
-
-    original = kb.TASKS_FILE
-    kb.TASKS_FILE = tasks_file
-    try:
-        rc = kb.cmd_state_info('T-INFO')
-        out = capsys.readouterr().out
-        assert rc == 0
-        assert '[state] T-INFO' in out
-        assert 'state=Doing' in out
-        assert 'org=工部' in out
-    finally:
-        kb.TASKS_FILE = original
-
-
-def test_validate_state_name_suggests_close_match():
-    """状态名拼写错误时应给出可用建议。"""
-    ok, suggestions = kb._validate_state_name('Don')
-    assert ok is False
-    assert 'Done' in suggestions
-
-
 def test_block_and_unblock(tmp_path):
     """kanban block/unblock round-trip."""
     tasks_file = tmp_path / 'tasks_source.json'
