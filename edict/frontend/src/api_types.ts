@@ -191,7 +191,7 @@ export interface ActivityEntry {
   tools?: { name: string; input_preview?: string }[];
   tool?: string;
   output?: string;
-  exitCode?: number | null;
+  exitCode?: number | string | null;
   items?: TodoItem[];
   diff?: {
     changed?: { id: string; from: string; to: string }[];
