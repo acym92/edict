@@ -196,7 +196,13 @@ def cmd_create(task_id, title, state, org, official, remark=None):
         log.warning(f'⚠️ 拒绝创建 {task_id}：{reason}')
         print(f'[看板] 拒绝创建：{reason}', flush=True)
         return
+    is_paper_lane = _is_paper_lane_title(title) or state in ('Hanlin', 'Dalishi') or org in ('翰林院', '大理寺')
+    # 常规三省六部流程统一从「皇上 -> 太子」开始，避免出现错序的「皇上 -> 中书省」。
+    initial_state = state
     actual_org = STATE_ORG_MAP.get(state, org)
+    if not is_paper_lane and str(task_id).startswith('JJC-'):
+        initial_state = 'Taizi'
+        actual_org = '太子'
     clean_remark = _sanitize_remark(remark) if remark else f"下旨：{title}"
     def modifier(tasks):
         existing = next((t for t in tasks if t.get('id') == task_id), None)
@@ -209,18 +215,49 @@ def cmd_create(task_id, title, state, org, official, remark=None):
         tasks = [t for t in tasks if t.get('id') != task_id]
         tasks.insert(0, {
             "id": task_id, "title": title, "official": official,
-            "org": actual_org, "state": state,
-            "now": clean_remark[:60] if remark else f"已下旨，等待{actual_org}接旨",
+            "org": actual_org, "state": initial_state,
+            "now": clean_remark[:60] if remark else ("等待太子接旨分拣" if (not is_paper_lane and str(task_id).startswith('JJC-')) else f"已下旨，等待{actual_org}接旨"),
             "eta": "-", "block": "无", "output": "", "ac": "",
             "flow_log": [{"at": now_iso(), "from": "皇上", "to": actual_org, "remark": clean_remark}],
             "updatedAt": now_iso()
         })
-        if _is_paper_lane_title(title) or state in ('Hanlin', 'Dalishi') or actual_org in ('翰林院', '大理寺'):
+        if is_paper_lane:
             tasks[0]['pipeline'] = 'paper'
         return tasks
     atomic_json_update(TASKS_FILE, modifier, [])
     _trigger_refresh()
-    log.info(f'✅ 创建 {task_id} | {title[:30]} | state={state}')
+    log.info(f'✅ 创建 {task_id} | {title[:30]} | state={initial_state}')
+
+
+def _normalize_progress_text(now_text):
+    """把底层协议噪声转成可读的系统事件描述，不隐藏真实流转。"""
+    raw = (now_text or '').strip()
+    if not raw:
+        return raw
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    if not lines:
+        return raw
+
+    mapped = []
+    has_protocol = False
+    for ln in lines:
+        if ln.startswith('subagents{'):
+            has_protocol = True
+            mapped.append('【系统事件】太子查询子代理列表')
+            continue
+        if ln.startswith('sessions_spawn{'):
+            has_protocol = True
+            m = re.search(r'"childSessionKey"\s*:\s*"agent:([a-zA-Z0-9_\-]+)', ln)
+            child = m.group(1) if m else '未知子代理'
+            label = _AGENT_LABELS.get(child, child)
+            mapped.append(f'【系统事件】拉起子代理会话：{label}')
+            continue
+        mapped.append(ln)
+
+    # 仅在检测到协议噪声时做归一化，避免误改正常进展描述。
+    if not has_protocol:
+        return raw
+    return '；'.join(mapped)
 
 
 # ── 状态流转合法性校验 ──
@@ -372,7 +409,7 @@ def cmd_progress(task_id, now_text, todos_pipe='', tokens=0, cost=0.0, elapsed=0
     cost: 可选，本次成本（美元）
     elapsed: 可选，本次耗时（秒）
     """
-    clean = _sanitize_remark(now_text)
+    clean = _sanitize_remark(_normalize_progress_text(now_text))
     # 解析 todos_pipe
     parsed_todos = None
     if todos_pipe:

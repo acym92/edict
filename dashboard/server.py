@@ -1682,6 +1682,33 @@ def _compute_todos_diff(prev_todos, curr_todos):
     return {'changed': changed, 'added': added, 'removed': removed}
 
 
+def _normalize_progress_text(text):
+    """将底层协议事件文本转换为可读进展，保留真实执行链路。"""
+    raw = (text or '').strip()
+    if not raw:
+        return raw
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    if not lines:
+        return raw
+
+    mapped = []
+    has_protocol = False
+    for ln in lines:
+        if ln.startswith('subagents{'):
+            has_protocol = True
+            mapped.append('【系统事件】太子查询子代理列表')
+            continue
+        if ln.startswith('sessions_spawn{'):
+            has_protocol = True
+            m = re.search(r'"childSessionKey"\s*:\s*"agent:([a-zA-Z0-9_\-]+)', ln)
+            child = m.group(1) if m else 'unknown'
+            mapped.append(f'【系统事件】拉起子代理会话：{_AGENT_LABELS.get(child, child)}')
+            continue
+        mapped.append(ln)
+
+    return '；'.join(mapped) if has_protocol else raw
+
+
 def get_task_activity(task_id):
     """获取任务的实时进展数据。
     数据来源：
@@ -1755,7 +1782,7 @@ def get_task_activity(task_id):
         for pl in progress_log:
             p_at = pl.get('at', '')
             p_agent = pl.get('agent', '')
-            p_text = pl.get('text', '')
+            p_text = _normalize_progress_text(pl.get('text', ''))
             p_todos = pl.get('todos', [])
             p_state = pl.get('state', '')
             p_org = pl.get('org', '')
