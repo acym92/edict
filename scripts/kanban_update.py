@@ -257,10 +257,10 @@ def cmd_create(task_id, title, state, org, official, remark=None):
         return
     state = _normalize_state_name(state)
     is_paper_lane = _is_paper_lane_title(title) or state in ('Hanlinyuan', 'Dalisi') or org in ('翰林院', '大理寺')
-    # 常规三省六部流程统一从「皇上 -> 太子」开始，避免出现错序的「皇上 -> 中书省」。
+    # 所有 JJC 旨意（含论文专线）统一从「皇上 -> 太子」开始，避免出现错序首条流转。
     initial_state = state
     actual_org = STATE_ORG_MAP.get(state, org)
-    if not is_paper_lane and str(task_id).startswith('JJC-'):
+    if str(task_id).startswith('JJC-'):
         initial_state = 'Taizi'
         actual_org = '太子'
     clean_remark = _sanitize_remark(remark) if remark else f"下旨：{title}"
@@ -276,7 +276,7 @@ def cmd_create(task_id, title, state, org, official, remark=None):
         tasks.insert(0, {
             "id": task_id, "title": title, "official": official,
             "org": actual_org, "state": initial_state,
-            "now": clean_remark[:60] if remark else ("等待太子接旨分拣" if (not is_paper_lane and str(task_id).startswith('JJC-')) else f"已下旨，等待{actual_org}接旨"),
+            "now": clean_remark[:60] if remark else ("等待太子接旨分拣" if str(task_id).startswith('JJC-') else f"已下旨，等待{actual_org}接旨"),
             "eta": "-", "block": "无", "output": "", "ac": "",
             "flow_log": [{"at": now_iso(), "from": "皇上", "to": actual_org, "remark": clean_remark}],
             "updatedAt": now_iso()
@@ -391,7 +391,7 @@ _VALID_TRANSITIONS = {
 _HANLIN_ONLY_TRANSITIONS = {
     'Pending': {'Taizi', 'Cancelled'},
     'Taizi': {'Hanlinyuan', 'Cancelled'},
-    'Hanlinyuan': {'Dalisi', 'Done', 'Blocked', 'Cancelled'},
+    'Hanlinyuan': {'Dalisi', 'Blocked', 'Cancelled'},
     'Dalisi': {'Hanlinyuan', 'Done', 'Blocked', 'Cancelled'},
     'Blocked': {'Hanlinyuan', 'Dalisi', 'Cancelled'},
     'Done': set(),
@@ -444,6 +444,21 @@ def _auto_advance_when_todos_done(task: dict):
     return False
 
 
+def _finalize_todos_when_done(task: dict):
+    """任务完成时兜底收口 todos，避免 UI 仍显示“进行中”假象。"""
+    todos = [td for td in (task.get('todos') or []) if isinstance(td, dict)]
+    if not todos:
+        return 0
+    changed = 0
+    for td in todos:
+        if td.get('status') != 'completed':
+            td['status'] = 'completed'
+            changed += 1
+    if changed:
+        task['todos'] = todos
+    return changed
+
+
 def cmd_state(task_id, new_state, now_text=None):
     """更新任务状态（原子操作，含流转合法性校验）"""
     old_state = [None]
@@ -488,6 +503,8 @@ def cmd_state(task_id, new_state, now_text=None):
             t['pipeline'] = 'paper'
         if now_text:
             t['now'] = now_text
+        if target_state == 'Done':
+            _finalize_todos_when_done(t)
         t['updatedAt'] = now_iso()
         return tasks
     atomic_json_update(TASKS_FILE, modifier, [])
@@ -527,6 +544,7 @@ def cmd_done(task_id, output_path='', summary=''):
             log.error(f'任务 {task_id} 不存在')
             return tasks
         t['state'] = 'Done'
+        _finalize_todos_when_done(t)
         t['output'] = output_path
         t['now'] = summary or '任务已完成'
         done_remark = f"✅ 完成：{summary or '任务已完成'}"
