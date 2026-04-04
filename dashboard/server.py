@@ -763,6 +763,8 @@ def handle_review_action(task_id, action, comment=''):
     new_state = task['state']
     if new_state not in ('Done',):
         dispatch_for_state(task_id, task, new_state)
+    else:
+        notify_taizi_done(task_id, task, trigger='review-approved-done', done_note='尚书省审查通过')
 
     label = '已准奏' if action == 'approve' else '已封驳'
     dispatched = ' (已自动派发 Agent)' if new_state != 'Done' else ''
@@ -1006,7 +1008,7 @@ def wake_agent(agent_id, message=''):
 # 状态 → agent_id 映射
 _STATE_AGENT_MAP = {
     'Taizi': 'taizi',
-    'Hanlin': 'hanlinyuan',
+    'Hanlinyuan': 'hanlinyuan',
     'Dalisi': 'dalisi',
     'Zhongshu': 'zhongshu',
     'Menxia': 'menxia',
@@ -2051,7 +2053,7 @@ def get_task_activity(task_id):
 _STATE_FLOW = {
     'Pending':  ('Taizi', '皇上', '太子', '待处理旨意转交太子分拣'),
     'Taizi':    ('Zhongshu', '太子', '中书省', '太子分拣完毕，转中书省起草'),
-    'Hanlin':   ('Dalisi', '翰林院', '大理寺', '翰林院提交成果，大理寺进入审稿'),
+    'Hanlinyuan':   ('Dalisi', '翰林院', '大理寺', '翰林院提交成果，大理寺进入审稿'),
     'Dalisi':  ('Done', '大理寺', '太子', '大理寺终审通过，回奏太子转报皇上'),
     'Zhongshu': ('Menxia', '中书省', '门下省', '中书省方案提交门下省审议'),
     'Menxia':   ('Assigned', '门下省', '尚书省', '门下省准奏，转尚书省派发'),
@@ -2061,7 +2063,7 @@ _STATE_FLOW = {
     'Review':   ('Done', '尚书省', '太子', '全流程完成，回奏太子转报皇上'),
 }
 _STATE_LABELS = {
-    'Pending': '待处理', 'Taizi': '太子', 'Hanlin': '翰林院', 'Dalisi': '大理寺', 'Zhongshu': '中书省', 'Menxia': '门下省',
+    'Pending': '待处理', 'Taizi': '太子', 'Hanlinyuan': '翰林院', 'Dalisi': '大理寺', 'Zhongshu': '中书省', 'Menxia': '门下省',
     'Assigned': '尚书省', 'Next': '待执行', 'Doing': '执行中', 'Review': '审查', 'Done': '完成',
 }
 
@@ -2075,6 +2077,19 @@ def _is_hanlinyuan_task(task: dict) -> bool:
         if (fl.get('from') == '翰林院') or (fl.get('to') == '翰林院'):
             return True
         if (fl.get('from') == '大理寺') or (fl.get('to') == '大理寺'):
+            return True
+    return False
+
+
+def _has_menxia_approval_notice(task: dict) -> bool:
+    """是否已有“门下省准奏→尚书省”的审议通过通知。"""
+    for fl in reversed(task.get('flow_log') or []):
+        if (fl.get('from') or '') != '门下省':
+            continue
+        if (fl.get('to') or '') != '尚书省':
+            continue
+        remark = str(fl.get('remark') or '')
+        if any(k in remark for k in ('准奏', '审议通过', '审核通过', '御批通过')):
             return True
     return False
 
@@ -2093,6 +2108,24 @@ def _hanlinyuan_route_hint(title: str) -> str:
 
 def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
     """推进/审批后自动派发对应 Agent（后台异步，不阻塞响应）。"""
+    is_paper_task = _is_hanlinyuan_task(task)
+
+    # 论文专线与三省六部严格隔离：论文任务不允许派发到中书/门下/尚书/六部链路。
+    if is_paper_task and new_state in {'Pending', 'Zhongshu', 'Menxia', 'Assigned', 'Next', 'Doing', 'Review'}:
+        _update_task_scheduler(task_id, lambda t, s: (
+            s.update({
+                'lastDispatchAt': now_iso(),
+                'lastDispatchStatus': 'paper-lane-isolation',
+                'lastDispatchAgent': '',
+                'lastDispatchState': new_state,
+                'lastDispatchTrigger': trigger,
+                'lastDispatchError': f'paper-task-state-{new_state}-blocked',
+            }),
+            _scheduler_add_flow(t, f'论文专线隔离：阻止派发到 {new_state} 经典链路', to='翰林院')
+        ))
+        log.warning(f'⚠️ {task_id} 为论文专线，已阻止 {new_state} 的经典链路派发')
+        return
+
     agent_id = _STATE_AGENT_MAP.get(new_state)
     if agent_id is None and new_state in ('Doing', 'Next'):
         org = task.get('org', '')
@@ -2101,14 +2134,31 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
         log.info(f'ℹ️ {task_id} 新状态 {new_state} 无对应 Agent，跳过自动派发')
         return
     dispatch_targets = [agent_id]
-    if _is_hanlinyuan_task(task) and new_state == 'Hanlin' and 'dalisi' not in dispatch_targets:
+    if is_paper_task and new_state == 'Hanlinyuan' and 'dalisi' not in dispatch_targets:
         dispatch_targets.append('dalisi')
+
+    # 尚书省派发闸门：必须先收到“门下省准奏”通知，才能推进到 Assigned 的自动派发。
+    if (not is_paper_task) and new_state == 'Assigned' and not _has_menxia_approval_notice(task):
+        _update_task_scheduler(task_id, lambda t, s: (
+            s.update({
+                'lastDispatchAt': now_iso(),
+                'lastDispatchStatus': 'waiting-menxia-approval',
+                'lastDispatchAgent': ','.join(dispatch_targets),
+                'lastDispatchState': new_state,
+                'lastDispatchTrigger': trigger,
+                'lastDispatchError': 'missing-menxia-approval-notice',
+            }),
+            _scheduler_add_flow(t, '等待门下省准奏通知后再派发尚书省', to='门下省')
+        ))
+        log.info(f'ℹ️ {task_id} 等待门下省准奏通知，暂不派发尚书省')
+        return
 
     _update_task_scheduler(task_id, lambda t, s: (
         s.update({
             'lastDispatchAt': now_iso(),
             'lastDispatchStatus': 'queued',
             'lastDispatchAgent': ','.join(dispatch_targets),
+            'lastDispatchState': new_state,
             'lastDispatchTrigger': trigger,
         }),
         _scheduler_add_flow(t, f'已入队派发：{new_state} → {",".join(dispatch_targets)}（{trigger}）', to=_STATE_LABELS.get(new_state, new_state))
@@ -2162,7 +2212,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
             f'任务ID: {task_id}\n'
             f'旨意: {title}\n'
             f'你只能与太子、翰林院协作，请全程监督翰林院产出并给出审稿意见。\n'
-            f'审稿结论请推动状态在 Dalisi ↔ Hanlin 之间流转，终审通过后可置为 Done。'
+            f'审稿结论请推动状态在 Dalisi ↔ Hanlinyuan 之间流转，终审通过后可置为 Done。'
         ),
     }
 
@@ -2202,6 +2252,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                                 'lastDispatchAt': now_iso(),
                                 'lastDispatchStatus': 'success',
                                 'lastDispatchAgent': target,
+                                'lastDispatchState': new_state,
                                 'lastDispatchTrigger': trigger,
                                 'lastDispatchError': '',
                             }),
@@ -2221,6 +2272,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                             'lastDispatchAt': now_iso(),
                             'lastDispatchStatus': 'failed',
                             'lastDispatchAgent': target,
+                            'lastDispatchState': new_state,
                             'lastDispatchTrigger': trigger,
                             'lastDispatchError': last_err,
                         }),
@@ -2255,8 +2307,8 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
     log.info(f'🚀 {task_id} 推进后自动派发 → {",".join(dispatch_targets)}')
 
 
-def notify_taizi_paper_done(task_id: str, task: dict, trigger='dalisi-paper-finished'):
-    """论文任务终审通过后，通知太子转报皇上。"""
+def notify_taizi_done(task_id: str, task: dict, trigger='task-finished', done_note: str | None = None):
+    """任务结束后，通知太子回奏皇上（用于把结果回传到用户链路）。"""
     title = task.get('title', '(无标题)')
 
     _update_task_scheduler(task_id, lambda t, s: (
@@ -2283,12 +2335,13 @@ def notify_taizi_paper_done(task_id: str, task: dict, trigger='dalisi-paper-fini
 
             _agent_cfg = read_json(DATA / 'agent_config.json', {})
             _channel = (_agent_cfg.get('dispatchChannel') or 'feishu').strip()
+            state_desc = done_note or '任务已完成'
             msg = (
-                f'✅ 论文任务已完成终审，请太子回奏皇上\n'
+                f'✅ 任务已完成，请太子回奏皇上\n'
                 f'任务ID: {task_id}\n'
                 f'旨意: {title}\n'
-                f'当前状态: Done（翰林院完成论文，大理寺审稿通过）\n'
-                f'请立即向皇上汇报：论文已完成，可查阅最终成果。'
+                f'当前状态: Done（{state_desc}）\n'
+                f'请立即向皇上汇报：任务已完成，可查阅最终成果。'
             )
             cmd = ['openclaw', 'agent', '--agent', 'taizi', '-m', msg,
                    '--deliver', '--channel', _channel, '--timeout', '300']
@@ -2345,7 +2398,42 @@ def notify_taizi_paper_done(task_id: str, task: dict, trigger='dalisi-paper-fini
             log.warning(f'⚠️ {task_id} 论文完成通知异常: {e}')
 
     threading.Thread(target=_do_notify, daemon=True).start()
-    log.info(f'📣 {task_id} 已触发论文完成回奏通知 → taizi')
+    log.info(f'📣 {task_id} 已触发完成回奏通知 → taizi')
+
+
+def notify_taizi_paper_done(task_id: str, task: dict, trigger='dalisi-paper-finished'):
+    """论文任务终审通过后，通知太子转报皇上。"""
+    notify_taizi_done(task_id, task, trigger=trigger, done_note='翰林院完成论文，大理寺审稿通过')
+
+
+def trigger_missing_done_notifications():
+    """兜底：扫描已完成但未回奏的任务，补发太子回传通知。"""
+    tasks = load_tasks()
+    pending: list[dict] = []
+    changed = False
+    for task in tasks:
+        if task.get('state') != 'Done':
+            continue
+        if task.get('_doneNotifiedAt'):
+            continue
+        # 仅针对旨意主任务做回奏；运行态会话任务不走该链路。
+        if isSession(task):
+            continue
+        task['_doneNotifiedAt'] = now_iso()
+        pending.append(task)
+        changed = True
+
+    if changed:
+        save_tasks(tasks)
+
+    for task in pending:
+        task_id = task.get('id', '')
+        if not task_id:
+            continue
+        if _is_hanlinyuan_task(task):
+            notify_taizi_paper_done(task_id, task, trigger='done-sync-fallback')
+        else:
+            notify_taizi_done(task_id, task, trigger='done-sync-fallback', done_note='任务状态已完成（补发回奏）')
 
 
 def handle_advance_state(task_id, comment=''):
@@ -2355,12 +2443,21 @@ def handle_advance_state(task_id, comment=''):
     if not task:
         return {'ok': False, 'error': f'任务 {task_id} 不存在'}
     cur = task.get('state', '')
-    state_flow = dict(_STATE_FLOW)
-    if _is_hanlinyuan_task(task):
-        state_flow['Taizi'] = ('Hanlin', '太子', '翰林院', '太子分拣完毕，转翰林院执行论文流程')
+    is_paper_task = _is_hanlinyuan_task(task)
+    if is_paper_task:
+        state_flow = {
+            'Pending': ('Taizi', '皇上', '太子', '待处理旨意转交太子分拣'),
+            'Taizi': ('Hanlinyuan', '太子', '翰林院', '太子分拣完毕，转翰林院执行论文流程'),
+            'Hanlinyuan': ('Dalisi', '翰林院', '大理寺', '翰林院提交成果，大理寺进入审稿'),
+            'Dalisi': ('Done', '大理寺', '太子', '大理寺终审通过，回奏太子转报皇上'),
+        }
+    else:
+        state_flow = dict(_STATE_FLOW)
 
     if cur not in state_flow:
         return {'ok': False, 'error': f'任务 {task_id} 状态为 {cur}，无法推进'}
+    if cur == 'Menxia':
+        return {'ok': False, 'error': f'任务 {task_id} 当前处于门下审议，请使用 review-action approve/reject 完成御批'}
     _ensure_scheduler(task)
     _scheduler_snapshot(task, f'advance-before-{cur}')
     next_state, from_dept, to_dept, default_remark = state_flow[cur]
@@ -2376,8 +2473,10 @@ def handle_advance_state(task_id, comment=''):
     # 🚀 推进后自动派发对应 Agent（Done 状态默认无需派发）
     if next_state != 'Done':
         dispatch_for_state(task_id, task, next_state)
-    elif _is_hanlinyuan_task(task) and cur == 'Dalisi':
+    elif is_paper_task and cur == 'Dalisi':
         notify_taizi_paper_done(task_id, task)
+    else:
+        notify_taizi_done(task_id, task, trigger='advance-state-done', done_note='流程推进至完成')
 
     from_label = _STATE_LABELS.get(cur, cur)
     to_label = _STATE_LABELS.get(next_state, next_state)
@@ -2457,6 +2556,7 @@ class Handler(BaseHTTPRequestHandler):
             all_ok = all(checks.values())
             self.send_json({'status': 'ok' if all_ok else 'degraded', 'ts': now_iso(), 'checks': checks})
         elif p == '/api/live-status':
+            trigger_missing_done_notifications()
             payload = read_json(DATA / 'live_status.json', {})
             if not isinstance(payload, dict):
                 payload = {}
