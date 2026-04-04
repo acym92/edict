@@ -76,11 +76,11 @@ _AGENT_LABELS = {
 }
 
 MAX_PROGRESS_LOG = 100  # 单任务最大进展日志条数
-_PAPER_LANE_TITLE_RE = re.compile(r'^\s*论文\s*[\\/／]')
+_PAPER_LANE_TITLE_RE = re.compile(r'^\s*论文(?:\s*[\\/／:：]|\s+|$)')
 
 
 def _is_paper_lane_title(title: str) -> bool:
-    """仅识别显式论文专线前缀（如：论文/主题、论文/修改）。"""
+    """识别“论文”开头的专线标题（如：论文/主题、论文 审稿、论文：修改）。"""
     return bool(_PAPER_LANE_TITLE_RE.match((title or '').strip()))
 
 def load():
