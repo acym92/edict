@@ -28,7 +28,7 @@ from ..db import Base
 class TaskState(str, enum.Enum):
     """任务状态枚举 — 映射三省六部流程。"""
     Taizi = "Taizi"           # 太子分拣
-    Hanlin = "Hanlin"         # 翰林院论文研究
+    Hanlinyuan = "Hanlinyuan"         # 翰林院论文研究
     Zhongshu = "Zhongshu"     # 中书省起草
     Menxia = "Menxia"         # 门下省审议
     Assigned = "Assigned"     # 尚书省已将任务派发
@@ -46,21 +46,21 @@ TERMINAL_STATES = {TaskState.Done, TaskState.Cancelled}
 
 # 状态流转合法路径
 STATE_TRANSITIONS = {
-    TaskState.Taizi: {TaskState.Zhongshu, TaskState.Hanlin, TaskState.Cancelled},
-    TaskState.Hanlin: {TaskState.Done, TaskState.Blocked, TaskState.Cancelled},
+    TaskState.Taizi: {TaskState.Zhongshu, TaskState.Hanlinyuan, TaskState.Cancelled},
+    TaskState.Hanlinyuan: {TaskState.Done, TaskState.Blocked, TaskState.Cancelled},
     TaskState.Zhongshu: {TaskState.Menxia, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Menxia: {TaskState.Assigned, TaskState.Zhongshu, TaskState.Cancelled},  # 封驳退回中书
     TaskState.Assigned: {TaskState.Doing, TaskState.Next, TaskState.Cancelled, TaskState.Blocked},
     TaskState.Next: {TaskState.Doing, TaskState.Cancelled},
     TaskState.Doing: {TaskState.Review, TaskState.Done, TaskState.Blocked, TaskState.Cancelled},
     TaskState.Review: {TaskState.Done, TaskState.Doing, TaskState.Cancelled},  # 审查不通过退回
-    TaskState.Blocked: {TaskState.Taizi, TaskState.Hanlin, TaskState.Zhongshu, TaskState.Menxia, TaskState.Assigned, TaskState.Doing},
+    TaskState.Blocked: {TaskState.Taizi, TaskState.Hanlinyuan, TaskState.Zhongshu, TaskState.Menxia, TaskState.Assigned, TaskState.Doing},
 }
 
 # 状态 → Agent 映射
 STATE_AGENT_MAP = {
     TaskState.Taizi: "taizi",
-    TaskState.Hanlin: "hanlinyuan",
+    TaskState.Hanlinyuan: "hanlinyuan",
     TaskState.Zhongshu: "zhongshu",
     TaskState.Menxia: "menxia",
     TaskState.Assigned: "shangshu",

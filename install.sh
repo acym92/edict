@@ -122,7 +122,7 @@ AGENTS_EOF
 
 # ── Step 1.5: 初始化论文研究 Agent 的技能与流程 ───────────────
 init_hanlinyuan_assets() {
-  info "初始化 Hanlin 论文研究技能..."
+  info "初始化 Hanlinyuan 论文研究技能..."
 
   local ws="$OC_HOME/workspace-hanlinyuan"
   local ws_skills="$ws/skills"
@@ -146,7 +146,7 @@ init_hanlinyuan_assets() {
 
   # 研究工作流说明（初始化后可直接使用）
   cat > "$ws/RESEARCH_WORKFLOW.md" << 'WORKFLOW_EOF'
-# Hanlin Research Workflow
+# Hanlinyuan Research Workflow
 
 当收到“论文”开头的任务时，按以下流程执行（支持 `论文/主题`、`论文/审稿`、`论文/修改`、`论文/方向`）：
 1. 读取 `skills/research-pipeline/SKILL.md` 获取主流程。
@@ -158,12 +158,12 @@ init_hanlinyuan_assets() {
 7. 所有文件统一输出到 `/root/.openclaw/output/<task_id>/`。
 WORKFLOW_EOF
 
-  log "Hanlin 研究技能已初始化（$copied 个技能）"
-  log "Hanlin 产出目录已就绪: /root/.openclaw/output"
+  log "Hanlinyuan 研究技能已初始化（$copied 个技能）"
+  log "Hanlinyuan 产出目录已就绪: /root/.openclaw/output"
 }
 
 init_hanlinyuan_config() {
-  info "初始化 Hanlin 执行器/审查器配置..."
+  info "初始化 Hanlinyuan 执行器/审查器配置..."
 
   local cfg_dir="$OC_HOME/agents/hanlinyuan/agent"
   local cfg_file="$cfg_dir/hanlinyuan.json"
@@ -193,9 +193,9 @@ init_hanlinyuan_config() {
 }
 HANLIN_CFG_EOF
     sed -i "s|__REPO_DIR__|$REPO_DIR|g" "$cfg_file"
-    log "已创建 Hanlin 配置: $cfg_file"
+    log "已创建 Hanlinyuan 配置: $cfg_file"
   else
-    info "已存在 Hanlin 配置，跳过覆盖: $cfg_file"
+    info "已存在 Hanlinyuan 配置，跳过覆盖: $cfg_file"
   fi
 }
 

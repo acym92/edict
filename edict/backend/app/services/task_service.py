@@ -58,9 +58,9 @@ class TaskService:
         normalized_title = (title or "").strip()
 
         # 论文专线：如果标题以“论文”开头且调用方未显式指定初始状态，
-        # 则直接进入 Hanlin，避免误入常规中书链路。
+        # 则直接进入 Hanlinyuan，避免误入常规中书链路。
         if initial_state == TaskState.Taizi and _is_paper_lane_title(normalized_title):
-            initial_state = TaskState.Hanlin
+            initial_state = TaskState.Hanlinyuan
             assignee_org = assignee_org or "翰林院"
 
         task = Task(
