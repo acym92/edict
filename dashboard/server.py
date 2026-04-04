@@ -753,8 +753,6 @@ _AGENT_DEPTS = [
     {'id':'zaochao', 'label':'钦天监','emoji':'📰', 'role':'朝报官',   'rank':'正三品'},
     {'id':'hanlinyuan', 'label':'翰林院','emoji':'🧪', 'role':'翰林院学士', 'rank':'正一品'},
     {'id':'dalishi', 'label':'大理寺','emoji':'⚖️', 'role':'大理寺卿', 'rank':'正一品'},
-    # 兼容历史拼写（dalisi），实际会在 get_agents_status 中归一到 dalishi，避免重复展示。
-    {'id':'dalisi', 'label':'大理寺','emoji':'⚖️', 'role':'大理寺卿', 'rank':'正一品'},
 ]
 
 
