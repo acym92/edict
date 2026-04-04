@@ -1683,7 +1683,8 @@ function renderLiveActivity(data){
       return html;
     }
     if(a.kind==='tool_result'){
-      const ok=a.exitCode===0||a.exitCode===null||a.exitCode===undefined;
+      const ec=(typeof a.exitCode==='string')?a.exitCode.toLowerCase():a.exitCode;
+      const ok=ec===0||ec===null||ec===undefined||ec==='ok'||ec==='accepted'||ec==='success'||ec==='succeeded'||ec==='done'||ec==='completed';
       return `<div class="la-entry la-tool-result ${ok?'ok':'err'}"><span class="la-icon">${ok?'✅':'❌'}</span><span class="la-body">${agBadge}<span class="la-tool-name">${esc(a.tool||'')}</span>${a.output?esc(a.output.substring(0,150)):''}</span><span class="la-time">${time}</span></div>`;
     }
     if(a.kind==='user'){
