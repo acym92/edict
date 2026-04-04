@@ -26,6 +26,7 @@ export interface Heartbeat {
 export interface Task {
   id: string;
   title: string;
+  pipeline?: 'paper' | string;
   state: string;
   org: string;
   now: string;

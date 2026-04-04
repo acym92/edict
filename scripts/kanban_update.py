@@ -44,7 +44,7 @@ from utils import now_iso  # noqa: E402
 
 STATE_ORG_MAP = {
     'Taizi': '太子', 'Zhongshu': '中书省', 'Menxia': '门下省', 'Assigned': '尚书省',
-    'Hanlin': '翰林院',
+    'Hanlinyuan': '翰林院',
     'Dalisi': '大理寺',
     'Doing': '执行中', 'Review': '尚书省', 'Done': '完成', 'Blocked': '阻塞',
 }
@@ -54,7 +54,7 @@ _STATE_AGENT_MAP = {
     'Zhongshu': 'zhongshu',
     'Menxia': 'menxia',
     'Assigned': 'shangshu',
-    'Hanlin': 'hanlinyuan',
+    'Hanlinyuan': 'hanlinyuan',
     'Dalisi': 'dalisi',
     'Review': 'shangshu',
     'Pending': 'zhongshu',
@@ -171,10 +171,15 @@ def _infer_agent_id_from_runtime(task=None):
     if m:
         return m.group(1)
 
-    fpath = str(pathlib.Path(__file__).resolve())
-    m2 = re.search(r'workspace-([a-zA-Z0-9_\-]+)', fpath)
-    if m2:
-        return m2.group(1)
+    # 兼容 `python -c/exec` 场景：此时 __file__ 可能不存在，不能直接引用。
+    fpath = globals().get('__file__')
+    if fpath:
+        try:
+            m2 = re.search(r'workspace-([a-zA-Z0-9_\-]+)', str(pathlib.Path(fpath).resolve()))
+            if m2:
+                return m2.group(1)
+        except Exception:
+            pass
 
     if task:
         state = task.get('state', '')
@@ -216,7 +221,7 @@ def cmd_create(task_id, title, state, org, official, remark=None):
         log.warning(f'⚠️ 拒绝创建 {task_id}：{reason}')
         print(f'[看板] 拒绝创建：{reason}', flush=True)
         return
-    is_paper_lane = _is_paper_lane_title(title) or state in ('Hanlin', 'Dalisi') or org in ('翰林院', '大理寺')
+    is_paper_lane = _is_paper_lane_title(title) or state in ('Hanlinyuan', 'Dalisi') or org in ('翰林院', '大理寺')
     # 常规三省六部流程统一从「皇上 -> 太子」开始，避免出现错序的「皇上 -> 中书省」。
     initial_state = state
     actual_org = STATE_ORG_MAP.get(state, org)
@@ -261,6 +266,10 @@ def _normalize_progress_text(now_text):
     mapped = []
     has_protocol = False
     for ln in lines:
+        if ln.startswith('execCommand still running '):
+            has_protocol = True
+            mapped.append('【系统事件】命令仍在执行，已切换为后台会话跟踪（process/poll）')
+            continue
         if ln.startswith('subagents{'):
             has_protocol = True
             mapped.append('【系统事件】太子查询子代理列表')
@@ -331,25 +340,25 @@ def _extract_spawn_agents(now_text):
 # 额外: Blocked 可双向切换, Cancelled 从任意非终态可达, Next→Doing
 _VALID_TRANSITIONS = {
     'Pending':   {'Taizi', 'Cancelled'},
-    'Taizi':     {'Zhongshu', 'Hanlin', 'Cancelled'},
-    'Hanlin':    {'Done', 'Blocked', 'Cancelled'},
+    'Taizi':     {'Zhongshu', 'Hanlinyuan', 'Cancelled'},
+    'Hanlinyuan':    {'Done', 'Blocked', 'Cancelled'},
     'Zhongshu':  {'Menxia', 'Cancelled'},
     'Menxia':    {'Assigned', 'Zhongshu', 'Cancelled'},   # 封驳可回中书
     'Assigned':  {'Doing', 'Next', 'Blocked', 'Cancelled'},
     'Next':      {'Doing', 'Blocked', 'Cancelled'},
     'Doing':     {'Review', 'Blocked', 'Cancelled'},
     'Review':    {'Done', 'Menxia', 'Doing', 'Cancelled'},  # 可打回重审/重做
-    'Blocked':   {'Doing', 'Next', 'Assigned', 'Review', 'Hanlin', 'Cancelled'},  # 解除后回原位
+    'Blocked':   {'Doing', 'Next', 'Assigned', 'Review', 'Hanlinyuan', 'Cancelled'},  # 解除后回原位
     'Done':      set(),       # 终态
     'Cancelled': set(),       # 终态
 }
 
 _HANLIN_ONLY_TRANSITIONS = {
     'Pending': {'Taizi', 'Cancelled'},
-    'Taizi': {'Hanlin', 'Cancelled'},
-    'Hanlin': {'Dalisi', 'Done', 'Blocked', 'Cancelled'},
-    'Dalisi': {'Hanlin', 'Done', 'Blocked', 'Cancelled'},
-    'Blocked': {'Hanlin', 'Dalisi', 'Cancelled'},
+    'Taizi': {'Hanlinyuan', 'Cancelled'},
+    'Hanlinyuan': {'Dalisi', 'Done', 'Blocked', 'Cancelled'},
+    'Dalisi': {'Hanlinyuan', 'Done', 'Blocked', 'Cancelled'},
+    'Blocked': {'Hanlinyuan', 'Dalisi', 'Cancelled'},
     'Done': set(),
     'Cancelled': set(),
 }
@@ -404,6 +413,7 @@ def cmd_state(task_id, new_state, now_text=None):
     """更新任务状态（原子操作，含流转合法性校验）"""
     old_state = [None]
     rejected = [False]
+    target_state = new_state
     def modifier(tasks):
         t = find_task(tasks, task_id)
         if not t:
@@ -417,20 +427,29 @@ def cmd_state(task_id, new_state, now_text=None):
         caller = _infer_agent_id_from_runtime(t)
         # 允许太子在任务已实质完成后直接收口为 Done，避免长期停留在执行态。
         if (
-            new_state == 'Done'
+            target_state == 'Done'
             and caller in ('taizi', 'main')
             and old_state[0] in ('Assigned', 'Next', 'Doing', 'Review')
         ):
+            todos = [td for td in (t.get('todos') or []) if isinstance(td, dict)]
+            has_unfinished_todos = any(td.get('status') != 'completed' for td in todos)
+            # 若任务还在执行态且已派生过子代理协同，必须先回到 Review 再收口 Done，
+            # 避免“子代理仍在跑，主任务先完成”的假完成。
+            has_spawned_subagents = bool(t.get('_spawn_event_keys'))
+            if has_unfinished_todos or (old_state[0] in ('Assigned', 'Next', 'Doing') and has_spawned_subagents):
+                log.warning(f'⚠️ 拒绝提前完成 {task_id}: 子任务未收口（state={old_state[0]}）')
+                rejected[0] = True
+                return tasks
             allowed = set(allowed or set())
             allowed.add('Done')
-        if allowed is not None and new_state not in allowed:
-            log.warning(f'⚠️ 非法状态转换 {task_id}: {old_state[0]} → {new_state}（允许: {allowed}）')
+        if allowed is not None and target_state not in allowed:
+            log.warning(f'⚠️ 非法状态转换 {task_id}: {old_state[0]} → {target_state}（允许: {allowed}）')
             rejected[0] = True
             return tasks
-        t['state'] = new_state
-        if new_state in STATE_ORG_MAP:
-            t['org'] = STATE_ORG_MAP[new_state]
-        if new_state in ('Hanlin', 'Dalisi'):
+        t['state'] = target_state
+        if target_state in STATE_ORG_MAP:
+            t['org'] = STATE_ORG_MAP[target_state]
+        if target_state in ('Hanlinyuan', 'Dalisi'):
             t['pipeline'] = 'paper'
         if now_text:
             t['now'] = now_text
@@ -439,9 +458,9 @@ def cmd_state(task_id, new_state, now_text=None):
     atomic_json_update(TASKS_FILE, modifier, [])
     _trigger_refresh()
     if rejected[0]:
-        log.info(f'❌ {task_id} 状态转换被拒: {old_state[0]} → {new_state}')
+        log.info(f'❌ {task_id} 状态转换被拒: {old_state[0]} → {target_state}')
     else:
-        log.info(f'✅ {task_id} 状态更新: {old_state[0]} → {new_state}')
+        log.info(f'✅ {task_id} 状态更新: {old_state[0]} → {target_state}')
 
 
 def cmd_flow(task_id, from_dept, to_dept, remark):
@@ -455,7 +474,7 @@ def cmd_flow(task_id, from_dept, to_dept, remark):
         if _is_hanlinyuan_task(t):
             allowed_depts = {'皇上', '太子', '翰林院'}
             if from_dept not in allowed_depts or to_dept not in allowed_depts:
-                log.warning(f'⚠️ Hanlin 专线任务禁止跨入其他部门: {from_dept} -> {to_dept}')
+                log.warning(f'⚠️ Hanlinyuan 专线任务禁止跨入其他部门: {from_dept} -> {to_dept}')
                 return tasks
         _append_flow_dedup(t, from_dept, to_dept, clean_remark)
         t['updatedAt'] = now_iso()

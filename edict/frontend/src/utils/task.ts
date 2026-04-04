@@ -53,20 +53,23 @@ export type PipeStatus = {
 
 export function getPipeStatus(task: Task): PipeStatus[] {
   const flowLog = task.flow_log || [];
+  const isPaperTagged = (task.pipeline || '') === 'paper';
+  const isPaperTitle = /^\s*论文(?:\s*[\\/／:：]|\s+|$)/.test(task.title || '');
   const hasHanlin = (task.org || '') === '翰林院'
     || flowLog.some((f) => (f.from || '') === '翰林院' || (f.to || '') === '翰林院')
     || task.sourceMeta?.agentId === 'hanlinyuan';
   const hasClassic = flowLog.some((f) => ['中书省', '门下省', '尚书省', '礼部', '户部', '兵部', '刑部', '工部', '吏部'].includes(f.from || '')
     || ['中书省', '门下省', '尚书省', '礼部', '户部', '兵部', '刑部', '工部', '吏部'].includes(f.to || ''));
-  const isHanlinFlow = (hasHanlin && !hasClassic)
-    || ((task.title || '').startsWith('论文') && !hasClassic);
+  const isHanlinFlow = isPaperTagged
+    || (hasHanlin && !hasClassic)
+    || (isPaperTitle && !hasClassic);
 
   if (isHanlinFlow) {
     const idxByState: Record<string, number> = {
       Inbox: 0,
       Pending: 0,
       Taizi: 1,
-      Hanlin: 2,
+      Hanlinyuan: 2,
       Dalisi: 3,
       Done: 4,
       Cancelled: 4,

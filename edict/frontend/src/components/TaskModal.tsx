@@ -26,15 +26,19 @@ const AGENT_LABELS: Record<string, string> = {
   dalisi: '大理寺',
 };
 
-const NEXT_LABELS: Record<string, string> = {
+const CLASSIC_NEXT_LABELS: Record<string, string> = {
   Taizi: '中书省起草',
-  Hanlin: '大理寺审稿',
-  Dalisi: '回奏太子',
   Zhongshu: '门下省审议',
   Menxia: '尚书省派发',
   Assigned: '开始执行',
   Doing: '进入审查',
   Review: '完成',
+};
+
+const PAPER_NEXT_LABELS: Record<string, string> = {
+  Taizi: '翰林院执行',
+  Hanlinyuan: '大理寺审稿',
+  Dalisi: '回奏太子',
 };
 
 function fmtStalled(sec: number): string {
@@ -169,7 +173,10 @@ export default function TaskModal() {
     const inferredNext = activeIdx >= 0 && activeIdx < stages.length - 1
       ? `${stages[activeIdx + 1].dept}（${stages[activeIdx + 1].action}）`
       : '';
-    const next = inferredNext || NEXT_LABELS[task.state] || '下一步';
+    const isPaperLane = (task.pipeline || '') === 'paper'
+      || ['Hanlinyuan', 'Dalisi'].includes(task.state);
+    const nextMap = isPaperLane ? PAPER_NEXT_LABELS : CLASSIC_NEXT_LABELS;
+    const next = inferredNext || nextMap[task.state] || '下一步';
     const comment = prompt(`⏩ 手动推进 ${task.id}\n当前: ${task.state} → 下一步: ${next}\n\n请输入说明（可留空）：`);
     if (comment === null) return;
     try {
@@ -290,7 +297,7 @@ export default function TaskModal() {
                 <button className="btn-action" style={{ background: '#ff527022', color: '#ff5270', border: '1px solid #ff527044' }} onClick={() => doReview('reject')}>🚫 封驳</button>
               </>
             )}
-            {['Pending', 'Taizi', 'Hanlin', 'Dalisi', 'Zhongshu', 'Menxia', 'Assigned', 'Doing', 'Review', 'Next'].includes(task.state) && (
+            {['Pending', 'Taizi', 'Hanlinyuan', 'Dalisi', 'Zhongshu', 'Menxia', 'Assigned', 'Doing', 'Review', 'Next'].includes(task.state) && (
               <button className="btn-action" style={{ background: '#7c5cfc18', color: '#7c5cfc', border: '1px solid #7c5cfc44' }} onClick={doAdvance}>⏩ 推进到下一步</button>
             )}
           </div>

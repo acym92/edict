@@ -16,14 +16,14 @@ export const PIPE = [
 export const HANLIN_PIPE = [
   { key: 'Inbox', dept: '皇上', icon: '👑', action: '下旨' },
   { key: 'Taizi', dept: '太子', icon: '🤴', action: '分拣' },
-  { key: 'Hanlin', dept: '翰林院', icon: '🧪', action: '论文研究' },
+  { key: 'Hanlinyuan', dept: '翰林院', icon: '🧪', action: '论文研究' },
   { key: 'Dalisi', dept: '大理寺', icon: '⚖️', action: '审稿监督' },
   { key: 'Done', dept: '回奏', icon: '✅', action: '转报皇上' },
 ] as const;
 
 export const PIPE_STATE_IDX: Record<string, number> = {
   Inbox: 0, Pending: 0, Taizi: 1, Zhongshu: 2, Menxia: 3,
-  Hanlin: 2, Assigned: 4, Doing: 5, Review: 6, Done: 7, Blocked: 5, Cancelled: 5, Next: 4,
+  Hanlinyuan: 2, Assigned: 4, Doing: 5, Review: 6, Done: 7, Blocked: 5, Cancelled: 5, Next: 4,
 };
 
 export const DEPT_COLOR: Record<string, string> = {
@@ -35,7 +35,7 @@ export const DEPT_COLOR: Record<string, string> = {
 
 export const STATE_LABEL: Record<string, string> = {
   Inbox: '收件', Pending: '待处理', Taizi: '太子分拣', Zhongshu: '中书起草',
-  Menxia: '门下审议', Hanlin: '翰林院研究', Dalisi: '大理寺审稿', Assigned: '已派发', Doing: '执行中', Review: '待审查',
+  Menxia: '门下审议', Hanlinyuan: '翰林院研究', Dalisi: '大理寺审稿', Assigned: '已派发', Doing: '执行中', Review: '待审查',
   Done: '已完成', Blocked: '阻塞', Cancelled: '已取消', Next: '待执行',
 };
 
