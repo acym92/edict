@@ -23,13 +23,13 @@ const AGENT_LABELS: Record<string, string> = {
   libu_hr: '吏部',
   zaochao: '钦天监',
   hanlinyuan: '翰林院',
-  dalishi: '大理寺',
+  dalisi: '大理寺',
 };
 
 const NEXT_LABELS: Record<string, string> = {
   Taizi: '中书省起草',
   Hanlin: '大理寺审稿',
-  Dalishi: '回奏太子',
+  Dalisi: '回奏太子',
   Zhongshu: '门下省审议',
   Menxia: '尚书省派发',
   Assigned: '开始执行',
@@ -290,7 +290,7 @@ export default function TaskModal() {
                 <button className="btn-action" style={{ background: '#ff527022', color: '#ff5270', border: '1px solid #ff527044' }} onClick={() => doReview('reject')}>🚫 封驳</button>
               </>
             )}
-            {['Pending', 'Taizi', 'Hanlin', 'Dalishi', 'Zhongshu', 'Menxia', 'Assigned', 'Doing', 'Review', 'Next'].includes(task.state) && (
+            {['Pending', 'Taizi', 'Hanlin', 'Dalisi', 'Zhongshu', 'Menxia', 'Assigned', 'Doing', 'Review', 'Next'].includes(task.state) && (
               <button className="btn-action" style={{ background: '#7c5cfc18', color: '#7c5cfc', border: '1px solid #7c5cfc44' }} onClick={doAdvance}>⏩ 推进到下一步</button>
             )}
           </div>

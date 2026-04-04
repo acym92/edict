@@ -17,9 +17,23 @@ function useAgentMaps() {
 }
 
 function extractAgent(t: Task): string {
+  const title = t.title || '';
+  const tm = title.match(/^agent:([a-zA-Z0-9_-]+):/);
+  if (tm) return tm[1];
   const m = (t.id || '').match(/^OC-(\w+)-/);
   if (m) return m[1];
+  const metaAgent = (t.sourceMeta as Record<string, unknown> | undefined)?.agentId;
+  if (typeof metaAgent === 'string' && metaAgent) return metaAgent;
   return (t.org || '').replace(/省|部/g, '').toLowerCase();
+}
+
+function isSessionActive(t: Task): boolean {
+  const st = t.state || '';
+  if (['Done', 'Cancelled'].includes(st)) {
+    const hb = t.heartbeat?.status || '';
+    return hb === 'active' || hb === 'warn';
+  }
+  return true;
 }
 
 function humanTitle(t: Task, labelMap: Record<string, string>): string {
@@ -72,11 +86,11 @@ export default function SessionsPanel() {
   const cfgAgents = useStore((s) => s.agentConfig?.agents || []);
 
   let filtered = sessions;
-  if (sessFilter === 'active') filtered = sessions.filter((t) => !['Done', 'Cancelled'].includes(t.state));
+  if (sessFilter === 'active') filtered = sessions.filter(isSessionActive);
   else if (sessFilter !== 'all') filtered = sessions.filter((t) => extractAgent(t) === sessFilter);
 
   // 使用 agentConfig 全量展示，避免只显示少数活跃 agent。
-  const activeSet = new Set(sessions.filter((t) => !['Done', 'Cancelled'].includes(t.state)).map(extractAgent));
+  const activeSet = new Set(sessions.filter(isSessionActive).map(extractAgent));
   const allAgentIds = useMemo(
     () => [...new Set([...cfgAgents.map((a) => a.id), ...sessions.map(extractAgent)])],
     [cfgAgents, sessions],

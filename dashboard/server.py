@@ -752,13 +752,12 @@ _AGENT_DEPTS = [
     {'id':'libu_hr', 'label':'吏部',  'emoji':'👔', 'role':'吏部尚书', 'rank':'正二品'},
     {'id':'zaochao', 'label':'钦天监','emoji':'📰', 'role':'朝报官',   'rank':'正三品'},
     {'id':'hanlinyuan', 'label':'翰林院','emoji':'🧪', 'role':'翰林院学士', 'rank':'正一品'},
-    {'id':'dalishi', 'label':'大理寺','emoji':'⚖️', 'role':'大理寺卿', 'rank':'正一品'},
+    {'id':'dalisi', 'label':'大理寺','emoji':'⚖️', 'role':'大理寺卿', 'rank':'正一品'},
 ]
 
 
 def _canonical_agent_id(agent_id: str) -> str:
     return {
-        'dalisi': 'dalishi',
         'hanlin': 'hanlinyuan',
     }.get(agent_id, agent_id)
 
@@ -788,7 +787,7 @@ def _get_agent_session_status(agent_id):
     返回: (last_active_ts_ms, session_count, is_busy)
     """
     alias_map = {
-        'dalishi': ['dalishi', 'dalisi'],
+        'dalisi': ['dalisi'],
         'hanlinyuan': ['hanlinyuan', 'hanlin'],
     }
     aliases = alias_map.get(agent_id, [agent_id])
@@ -818,7 +817,7 @@ def _get_agent_session_status(agent_id):
 def _check_agent_process(agent_id):
     """检测是否有该 Agent 的 openclaw-agent 进程正在运行。"""
     alias_map = {
-        'dalishi': ['dalishi', 'dalisi'],
+        'dalisi': ['dalisi'],
         'hanlinyuan': ['hanlinyuan', 'hanlin'],
     }
     aliases = alias_map.get(agent_id, [agent_id])
@@ -838,7 +837,7 @@ def _check_agent_process(agent_id):
 def _check_agent_workspace(agent_id):
     """检查 Agent 工作空间是否存在。"""
     alias_map = {
-        'dalishi': ['dalishi', 'dalisi'],
+        'dalisi': ['dalisi'],
         'hanlinyuan': ['hanlinyuan', 'hanlin'],
     }
     aliases = alias_map.get(agent_id, [agent_id])
@@ -976,7 +975,7 @@ def wake_agent(agent_id, message=''):
 _STATE_AGENT_MAP = {
     'Taizi': 'taizi',
     'Hanlin': 'hanlinyuan',
-    'Dalishi': 'dalishi',
+    'Dalisi': 'dalisi',
     'Zhongshu': 'zhongshu',
     'Menxia': 'menxia',
     'Assigned': 'shangshu',
@@ -988,7 +987,7 @@ _STATE_AGENT_MAP = {
 _ORG_AGENT_MAP = {
     '礼部': 'libu', '户部': 'hubu', '兵部': 'bingbu',
     '刑部': 'xingbu', '工部': 'gongbu', '吏部': 'libu_hr',
-    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlinyuan', '大理寺': 'dalishi',
+    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlinyuan', '大理寺': 'dalisi',
 }
 
 _TERMINAL_STATES = {'Done', 'Cancelled'}
@@ -2020,8 +2019,8 @@ def get_task_activity(task_id):
 _STATE_FLOW = {
     'Pending':  ('Taizi', '皇上', '太子', '待处理旨意转交太子分拣'),
     'Taizi':    ('Zhongshu', '太子', '中书省', '太子分拣完毕，转中书省起草'),
-    'Hanlin':   ('Dalishi', '翰林院', '大理寺', '翰林院提交成果，大理寺进入审稿'),
-    'Dalishi':  ('Done', '大理寺', '太子', '大理寺终审通过，回奏太子转报皇上'),
+    'Hanlin':   ('Dalisi', '翰林院', '大理寺', '翰林院提交成果，大理寺进入审稿'),
+    'Dalisi':  ('Done', '大理寺', '太子', '大理寺终审通过，回奏太子转报皇上'),
     'Zhongshu': ('Menxia', '中书省', '门下省', '中书省方案提交门下省审议'),
     'Menxia':   ('Assigned', '门下省', '尚书省', '门下省准奏，转尚书省派发'),
     'Assigned': ('Doing', '尚书省', '六部', '尚书省开始派发执行'),
@@ -2030,7 +2029,7 @@ _STATE_FLOW = {
     'Review':   ('Done', '尚书省', '太子', '全流程完成，回奏太子转报皇上'),
 }
 _STATE_LABELS = {
-    'Pending': '待处理', 'Taizi': '太子', 'Hanlin': '翰林院', 'Dalishi': '大理寺', 'Zhongshu': '中书省', 'Menxia': '门下省',
+    'Pending': '待处理', 'Taizi': '太子', 'Hanlin': '翰林院', 'Dalisi': '大理寺', 'Zhongshu': '中书省', 'Menxia': '门下省',
     'Assigned': '尚书省', 'Next': '待执行', 'Doing': '执行中', 'Review': '审查', 'Done': '完成',
 }
 
@@ -2070,8 +2069,8 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
         log.info(f'ℹ️ {task_id} 新状态 {new_state} 无对应 Agent，跳过自动派发')
         return
     dispatch_targets = [agent_id]
-    if _is_hanlinyuan_task(task) and new_state == 'Hanlin' and 'dalishi' not in dispatch_targets:
-        dispatch_targets.append('dalishi')
+    if _is_hanlinyuan_task(task) and new_state == 'Hanlin' and 'dalisi' not in dispatch_targets:
+        dispatch_targets.append('dalisi')
 
     _update_task_scheduler(task_id, lambda t, s: (
         s.update({
@@ -2124,14 +2123,14 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
             f'旨意: {title}\n'
             f'⚠️ 看板已有此任务，请勿重复创建。\n'
             f'推荐路由: {hanlinyuan_hint}\n'
-            f'请按上述路由执行，完成论文后请将任务状态推进至 Dalishi，交由大理寺审稿监督。'
+            f'请按上述路由执行，完成论文后请将任务状态推进至 Dalisi，交由大理寺审稿监督。'
         ),
-        'dalishi': (
+        'dalisi': (
             f'⚖️ 论文审稿监督任务已唤醒\n'
             f'任务ID: {task_id}\n'
             f'旨意: {title}\n'
             f'你只能与太子、翰林院协作，请全程监督翰林院产出并给出审稿意见。\n'
-            f'审稿结论请推动状态在 Dalishi ↔ Hanlin 之间流转，终审通过后可置为 Done。'
+            f'审稿结论请推动状态在 Dalisi ↔ Hanlin 之间流转，终审通过后可置为 Done。'
         ),
     }
 
@@ -2224,7 +2223,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
     log.info(f'🚀 {task_id} 推进后自动派发 → {",".join(dispatch_targets)}')
 
 
-def notify_taizi_paper_done(task_id: str, task: dict, trigger='dalishi-paper-finished'):
+def notify_taizi_paper_done(task_id: str, task: dict, trigger='dalisi-paper-finished'):
     """论文任务终审通过后，通知太子转报皇上。"""
     title = task.get('title', '(无标题)')
 
@@ -2345,7 +2344,7 @@ def handle_advance_state(task_id, comment=''):
     # 🚀 推进后自动派发对应 Agent（Done 状态默认无需派发）
     if next_state != 'Done':
         dispatch_for_state(task_id, task, next_state)
-    elif _is_hanlinyuan_task(task) and cur == 'Dalishi':
+    elif _is_hanlinyuan_task(task) and cur == 'Dalisi':
         notify_taizi_paper_done(task_id, task)
 
     from_label = _STATE_LABELS.get(cur, cur)

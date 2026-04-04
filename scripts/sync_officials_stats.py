@@ -35,7 +35,7 @@ OFFICIALS = [
     {'id':'libu_hr', 'label':'吏部',  'role':'吏部尚书','emoji':'👔','rank':'正二品'},
     {'id':'zaochao', 'label':'钦天监','role':'朝报官',  'emoji':'📰','rank':'正三品'},
     {'id':'hanlinyuan', 'label':'翰林院','role':'翰林院学士','emoji':'🧪','rank':'正一品'},
-    {'id':'dalishi', 'label':'大理寺','role':'大理寺卿','emoji':'⚖️','rank':'正一品'},
+    {'id':'dalisi', 'label':'大理寺','role':'大理寺卿','emoji':'⚖️','rank':'正一品'},
 ]
 
 def rj(p, d):
