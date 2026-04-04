@@ -45,7 +45,7 @@ from utils import now_iso  # noqa: E402
 STATE_ORG_MAP = {
     'Taizi': '太子', 'Zhongshu': '中书省', 'Menxia': '门下省', 'Assigned': '尚书省',
     'Hanlin': '翰林院',
-    'Dalishi': '大理寺',
+    'Dalisi': '大理寺',
     'Doing': '执行中', 'Review': '尚书省', 'Done': '完成', 'Blocked': '阻塞',
 }
 
@@ -55,7 +55,7 @@ _STATE_AGENT_MAP = {
     'Menxia': 'menxia',
     'Assigned': 'shangshu',
     'Hanlin': 'hanlinyuan',
-    'Dalishi': 'dalishi',
+    'Dalisi': 'dalisi',
     'Review': 'shangshu',
     'Pending': 'zhongshu',
 }
@@ -63,7 +63,7 @@ _STATE_AGENT_MAP = {
 _ORG_AGENT_MAP = {
     '礼部': 'libu', '户部': 'hubu', '兵部': 'bingbu',
     '刑部': 'xingbu', '工部': 'gongbu', '吏部': 'libu_hr',
-    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlinyuan', '大理寺': 'dalishi',
+    '中书省': 'zhongshu', '门下省': 'menxia', '尚书省': 'shangshu', '翰林院': 'hanlinyuan', '大理寺': 'dalisi',
 }
 
 _AGENT_LABELS = {
@@ -72,7 +72,7 @@ _AGENT_LABELS = {
     'libu': '礼部', 'hubu': '户部', 'bingbu': '兵部', 'xingbu': '刑部',
     'gongbu': '工部', 'libu_hr': '吏部', 'zaochao': '钦天监',
     'hanlinyuan': '翰林院',
-    'dalishi': '大理寺',
+    'dalisi': '大理寺',
 }
 
 MAX_PROGRESS_LOG = 100  # 单任务最大进展日志条数
@@ -216,7 +216,7 @@ def cmd_create(task_id, title, state, org, official, remark=None):
         log.warning(f'⚠️ 拒绝创建 {task_id}：{reason}')
         print(f'[看板] 拒绝创建：{reason}', flush=True)
         return
-    is_paper_lane = _is_paper_lane_title(title) or state in ('Hanlin', 'Dalishi') or org in ('翰林院', '大理寺')
+    is_paper_lane = _is_paper_lane_title(title) or state in ('Hanlin', 'Dalisi') or org in ('翰林院', '大理寺')
     # 常规三省六部流程统一从「皇上 -> 太子」开始，避免出现错序的「皇上 -> 中书省」。
     initial_state = state
     actual_org = STATE_ORG_MAP.get(state, org)
@@ -347,9 +347,9 @@ _VALID_TRANSITIONS = {
 _HANLIN_ONLY_TRANSITIONS = {
     'Pending': {'Taizi', 'Cancelled'},
     'Taizi': {'Hanlin', 'Cancelled'},
-    'Hanlin': {'Dalishi', 'Done', 'Blocked', 'Cancelled'},
-    'Dalishi': {'Hanlin', 'Done', 'Blocked', 'Cancelled'},
-    'Blocked': {'Hanlin', 'Dalishi', 'Cancelled'},
+    'Hanlin': {'Dalisi', 'Done', 'Blocked', 'Cancelled'},
+    'Dalisi': {'Hanlin', 'Done', 'Blocked', 'Cancelled'},
+    'Blocked': {'Hanlin', 'Dalisi', 'Cancelled'},
     'Done': set(),
     'Cancelled': set(),
 }
@@ -387,7 +387,7 @@ def cmd_state(task_id, new_state, now_text=None):
         t['state'] = new_state
         if new_state in STATE_ORG_MAP:
             t['org'] = STATE_ORG_MAP[new_state]
-        if new_state in ('Hanlin', 'Dalishi'):
+        if new_state in ('Hanlin', 'Dalisi'):
             t['pipeline'] = 'paper'
         if now_text:
             t['now'] = now_text

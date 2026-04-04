@@ -48,7 +48,7 @@ export function getPipeStatus(task: Task): PipeStatus[] {
       Pending: 0,
       Taizi: 1,
       Hanlin: 2,
-      Dalishi: 3,
+      Dalisi: 3,
       Done: 4,
       Cancelled: 4,
     };

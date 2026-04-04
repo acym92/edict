@@ -63,7 +63,7 @@
     .st-Zhongshu{border-color:#a07aff44;color:#a07aff;background:#110a28}
     .st-Taizi{border-color:#e8a04044;color:#e8a040;background:#281a08}
     .st-Hanlin{border-color:#37c3ff44;color:#37c3ff;background:#071a28}
-    .st-Dalishi{border-color:#ff7ac844;color:#ff7ac8;background:#220a1c}
+    .st-Dalisi{border-color:#ff7ac844;color:#ff7ac8;background:#220a1c}
     .st-Menxia{border-color:#ff9a6a44;color:#ff9a6a;background:#280f0a}
     .st-Assigned,.st-Doing{border-color:#6a9eff44;color:#6a9eff;background:#0a1428}
     .st-Review{border-color:#f5c84244;color:#f5c842;background:#201a08}
@@ -749,7 +749,7 @@
       <span class="sess-filter" data-sf="menxia" onclick="filterSessions('menxia',this)">门下省</span>
       <span class="sess-filter" data-sf="zaochao" onclick="filterSessions('zaochao',this)">钦天监</span>
       <span class="sess-filter" data-sf="hanlinyuan" onclick="filterSessions('hanlinyuan',this)">翰林院</span>
-      <span class="sess-filter" data-sf="dalishi" onclick="filterSessions('dalishi',this)">大理寺</span>
+      <span class="sess-filter" data-sf="dalisi" onclick="filterSessions('dalisi',this)">大理寺</span>
     </div>
     <div id="sess-grid" class="sess-grid"></div>
   </div>
@@ -923,10 +923,10 @@ const PIPE_STATE_IDX = {Inbox:0,Pending:0,Taizi:1,Zhongshu:2,Menxia:3,Assigned:4
 const PAPER_PIPE = [
   {key:'Taizi',   dept:'太子',   icon:'🤴', action:'分拣'},
   {key:'Hanlin',  dept:'翰林院', icon:'🧪', action:'执行'},
-  {key:'Dalishi', dept:'大理寺', icon:'⚖️', action:'审稿'},
+  {key:'Dalisi', dept:'大理寺', icon:'⚖️', action:'审稿'},
   {key:'Done',    dept:'回奏',   icon:'✅', action:'完成'},
 ];
-const PAPER_PIPE_STATE_IDX = {Pending:0,Taizi:0,Hanlin:1,Dalishi:2,Done:3,Blocked:1,Cancelled:1};
+const PAPER_PIPE_STATE_IDX = {Pending:0,Taizi:0,Hanlin:1,Dalisi:2,Done:3,Blocked:1,Cancelled:1};
 
 /* ══ DEPT COLORS ══ */
 const DEPT_COLOR = {'太子':'#e8a040','中书省':'#a07aff','门下省':'#6a9eff','尚书省':'#6aef9a','礼部':'#f5c842','户部':'#ff9a6a','兵部':'#ff5270','刑部':'#cc4444','工部':'#44aaff','吏部':'#9b59b6','翰林院':'#37c3ff','大理寺':'#ff7ac8','皇上':'#ffd700','回奏':'#2ecc8a'};
@@ -937,7 +937,7 @@ const esc=s=>s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g
 async function fetchJ(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw Error(r.status);return r.json()}
 async function postJ(u,d){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});return r.json()}
 function toast(msg,type='ok',ms=3000){const el=document.createElement('div');el.className=`toast ${type}`;el.textContent=msg;document.getElementById('toaster').appendChild(el);setTimeout(()=>el.remove(),ms)}
-const STATE_LABEL={Inbox:'收件',Pending:'待处理',Taizi:'太子分拣',Hanlin:'翰林院执行',Dalishi:'大理寺审稿',Zhongshu:'中书起草',Menxia:'门下审议',Assigned:'已派发',Doing:'执行中',Review:'待审查',Done:'已完成',Blocked:'阻塞',Cancelled:'已取消',Next:'待执行'};
+const STATE_LABEL={Inbox:'收件',Pending:'待处理',Taizi:'太子分拣',Hanlin:'翰林院执行',Dalisi:'大理寺审稿',Zhongshu:'中书起草',Menxia:'门下审议',Assigned:'已派发',Doing:'执行中',Review:'待审查',Done:'已完成',Blocked:'阻塞',Cancelled:'已取消',Next:'待执行'};
 // 根据轮次动态生成状态标签
 function stateLabel(t){
   const r = t.review_round||0;
@@ -1174,7 +1174,7 @@ function renderMonitor(tasks){
     {id:'libu_hr', label:'吏部',  emoji:'👔',role:'吏部尚书',rank:'正二品'},
     {id:'zaochao', label:'钦天监',emoji:'📰',role:'朝报官',  rank:'正三品'},
     {id:'hanlinyuan', label:'翰林院',emoji:'🧪',role:'翰林院学士',rank:'正一品'},
-    {id:'dalishi', label:'大理寺',emoji:'⚖️',role:'大理寺卿',rank:'正一品'},
+    {id:'dalisi', label:'大理寺',emoji:'⚖️',role:'大理寺卿',rank:'正一品'},
   ];
 
   // 每个部门当前承接的旨意：从 JJC 任务里找 org 匹配且非 Done 的
@@ -1294,7 +1294,7 @@ function openTask(id){
       ${canResume ? `<button class="btn-action btn-resume" onclick="taskAction('${esc(t.id)}','resume','恢复执行')">▶️ 恢复执行</button>` : ''}
       ${['Review','Menxia'].includes(t.state) ? `<button class="btn-action" style="background:#2ecc8a22;color:#2ecc8a;border:1px solid #2ecc8a44" onclick="reviewAction('${esc(t.id)}','approve')">✅ 准奏</button>
       <button class="btn-action" style="background:#ff527022;color:#ff5270;border:1px solid #ff527044" onclick="reviewAction('${esc(t.id)}','reject')">🚫 封驳</button>` : ''}
-      ${['Pending','Taizi','Hanlin','Dalishi','Zhongshu','Menxia','Assigned','Doing','Review','Next'].includes(t.state) ? `<button class="btn-action" style="background:#7c5cfc18;color:#7c5cfc;border:1px solid #7c5cfc44" onclick="advanceState('${esc(t.id)}','${esc(t.state)}')">⏩ 推进到下一步</button>` : ''}
+      ${['Pending','Taizi','Hanlin','Dalisi','Zhongshu','Menxia','Assigned','Doing','Review','Next'].includes(t.state) ? `<button class="btn-action" style="background:#7c5cfc18;color:#7c5cfc;border:1px solid #7c5cfc44" onclick="advanceState('${esc(t.id)}','${esc(t.state)}')">⏩ 推进到下一步</button>` : ''}
     </div>
 
     <!-- 太子调度 -->
@@ -2132,7 +2132,7 @@ function extractAgent(t){
   const sm = t.sourceMeta||{};
   if(sm.agentId){
     // "mc-gateway-xxx" → try to match known agents
-    const known = ['taizi','zhongshu','menxia','shangshu','hubu','libu','bingbu','xingbu','gongbu','zaochao','hanlinyuan','dalishi'];
+    const known = ['taizi','zhongshu','menxia','shangshu','hubu','libu','bingbu','xingbu','gongbu','zaochao','hanlinyuan','dalisi'];
     for(const k of known){ if(sm.agentId.includes(k)) return k; }
   }
   return (t.org||'').replace(/省|部/g,'').toLowerCase();

@@ -28,7 +28,7 @@ ID_LABEL = {
     'libu_hr':  {'label': '吏部',   'role': '吏部尚书', 'duty': '人事/培训/Agent管理',  'emoji': '👔'},
     'zaochao':  {'label': '钦天监', 'role': '朝报官',   'duty': '每日新闻采集与简报',  'emoji': '📰'},
     'hanlinyuan': {'label': '翰林院', 'role': '翰林院学士', 'duty': '论文研究与评审改进', 'emoji': '🧪'},
-    'dalishi': {'label': '大理寺', 'role': '大理寺卿', 'duty': '论文监督与审稿裁定', 'emoji': '⚖️'},
+    'dalisi': {'label': '大理寺', 'role': '大理寺卿', 'duty': '论文监督与审稿裁定', 'emoji': '⚖️'},
 }
 
 
@@ -125,7 +125,7 @@ def main():
     # 补充不在 openclaw.json agents list 中的 agent（兼容旧版 main）
     EXTRA_AGENTS = {
         'taizi':   {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-taizi'),
-                    'allowAgents': ['zhongshu', 'hanlinyuan', 'dalishi']},
+                    'allowAgents': ['zhongshu', 'hanlinyuan', 'dalisi']},
         'main':    {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-main'),
                     'allowAgents': ['zhongshu','menxia','shangshu','hubu','libu','bingbu','xingbu','gongbu','libu_hr']},
         'zaochao': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-zaochao'),
@@ -133,8 +133,8 @@ def main():
         'libu_hr': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-libu_hr'),
                     'allowAgents': ['shangshu']},
         'hanlinyuan': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-hanlinyuan'),
-                   'allowAgents': ['taizi', 'dalishi']},
-        'dalishi': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-dalishi'),
+                   'allowAgents': ['taizi', 'dalisi']},
+        'dalisi': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-dalisi'),
                     'allowAgents': ['taizi', 'hanlinyuan']},
     }
     for ag_id, extra in EXTRA_AGENTS.items():
@@ -192,7 +192,7 @@ _SOUL_DEPLOY_MAP = {
     'libu_hr': 'libu_hr',
     'zaochao': 'zaochao',
     'hanlinyuan': 'hanlinyuan',
-    'dalishi': 'dalishi',
+    'dalisi': 'dalisi',
 }
 
 def sync_scripts_to_workspaces():

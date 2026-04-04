@@ -117,6 +117,12 @@ export default function MonitorPanel() {
       <div className="duty-grid">
         {DEPTS.map((d) => {
           const myTasks = activeTasks.filter((t) => t.org === d.label);
+          const doneTasks = tasks.filter((t) => isEdict(t) && t.org === d.label && t.state === 'Done');
+          const latestDone = doneTasks
+            .map((t) => Date.parse((t.updatedAt || t.eta || '').replace(' ', 'T')))
+            .filter((ts) => Number.isFinite(ts))
+            .sort((a, b) => b - a)[0];
+          const recentlyDone = typeof latestDone === 'number' && (Date.now() - latestDone) <= 12 * 60 * 60 * 1000;
           const isActive = myTasks.some((t) => t.state === 'Doing');
           const isBlocked = myTasks.some((t) => t.state === 'Blocked');
           const off = offMap[d.id];
@@ -124,23 +130,27 @@ export default function MonitorPanel() {
           const rtRunning = rt?.status === 'running';
           const rtOffline = rt?.status === 'offline';
           const rtUnconfigured = rt?.status === 'unconfigured';
-          const dotCls = isBlocked
+          const dotCls = rtOffline
             ? 'blocked'
-            : isActive
-              ? 'busy'
-              : rtRunning
-                ? 'active'
-                : 'idle';
-          const statusText = isBlocked
-            ? '⚠️ 阻塞'
-            : isActive
-              ? '⚙️ 执行中'
-              : rtRunning
-                ? '🟢 活跃'
-                : rtOffline
-                  ? '🔴 离线'
-                  : rtUnconfigured
-                    ? '⚪ 未配置'
+            : rtUnconfigured
+              ? 'idle'
+              : isBlocked
+                ? 'blocked'
+                : rtRunning
+                  ? (isActive ? 'busy' : 'active')
+                  : 'idle';
+          const statusText = rtOffline
+            ? '🔴 离线'
+            : rtUnconfigured
+              ? '⚪ 未配置'
+              : isBlocked
+                ? '⚠️ 阻塞'
+                : rtRunning
+                  ? (isActive ? '⚙️ 执行中' : '🟢 活跃')
+                  : isActive
+                    ? '🟡 待唤醒'
+                    : recentlyDone
+                      ? '✅ 已完成'
                     : '⚪ 候命';
           const cardCls = isBlocked ? 'blocked-card' : isActive ? 'active-card' : '';
 
