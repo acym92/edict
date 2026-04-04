@@ -93,6 +93,41 @@ def load_tasks():
 
 def save_tasks(tasks):
     atomic_json_write(DATA / 'tasks_source.json', tasks)
+
+
+def _ensure_legacy_kanban_json_compat():
+    """兼容旧技能/脚本读取 ~/workspace-*/kanban.json 的历史路径。"""
+    tasks_file = DATA / 'tasks_source.json'
+    if not tasks_file.exists():
+        return
+
+    workspace_dirs: set[pathlib.Path] = set()
+    for p in OCLAW_HOME.glob('workspace-*'):
+        if p.is_dir():
+            workspace_dirs.add(p)
+
+    cfg = atomic_json_read(DATA / 'agent_config.json', {})
+    agents = cfg.get('agents') if isinstance(cfg, dict) else None
+    if isinstance(agents, list):
+        for ag in agents:
+            ws_raw = str((ag or {}).get('workspace') or '').strip()
+            if not ws_raw:
+                continue
+            ws = pathlib.Path(ws_raw).expanduser()
+            if ws.exists() and ws.is_dir():
+                workspace_dirs.add(ws)
+
+    for ws in workspace_dirs:
+        legacy_file = ws / 'kanban.json'
+        if legacy_file.exists():
+            continue
+        try:
+            legacy_file.symlink_to(tasks_file)
+        except Exception:
+            try:
+                legacy_file.write_text(tasks_file.read_text(encoding='utf-8'), encoding='utf-8')
+            except Exception:
+                pass
     # Trigger refresh (异步，不阻塞，避免僵尸进程)
     def _refresh():
         try:
@@ -287,6 +322,38 @@ def update_task_todos(task_id, todos):
         'autoAdvanced': auto_advanced,
         'state': task.get('state'),
     }
+
+
+def _finalize_todos_when_done(task: dict) -> int:
+    """任务完成时兜底将 todos 收口为 completed，避免已完成任务仍显示子任务进行中。"""
+    todos = [td for td in (task.get('todos') or []) if isinstance(td, dict)]
+    if not todos:
+        return 0
+    changed = 0
+    for td in todos:
+        if td.get('status') != 'completed':
+            td['status'] = 'completed'
+            changed += 1
+    if changed:
+        task['todos'] = todos
+    return changed
+
+
+_STATE_ORG_LABELS = {
+    'Pending': '待处理',
+    'Taizi': '太子',
+    'Hanlinyuan': '翰林院',
+    'Dalisi': '大理寺',
+    'Zhongshu': '中书省',
+    'Menxia': '门下省',
+    'Assigned': '尚书省',
+    'Next': '待执行',
+    'Doing': '执行中',
+    'Review': '尚书省',
+    'Done': '完成',
+    'Cancelled': '已取消',
+    'Blocked': '阻塞',
+}
 
 
 def read_skill_content(agent_id, skill_name):
@@ -737,6 +804,7 @@ def handle_review_action(task_id, action, comment=''):
         else:  # Review
             task['state'] = 'Done'
             task['now'] = '御批通过，任务完成'
+            _finalize_todos_when_done(task)
             remark = f'✅ 御批准奏：{comment or "审查通过"}'
             to_dept = '皇上'
     elif action == 'reject':
@@ -755,6 +823,7 @@ def handle_review_action(task_id, action, comment=''):
         to_dept,
         remark,
     )
+    task['org'] = _STATE_ORG_LABELS.get(task['state'], task.get('org', ''))
     _scheduler_mark_progress(task, f'审议动作 {action} -> {task.get("state")}')
     task['updatedAt'] = now_iso()
     save_tasks(tasks)
@@ -791,9 +860,7 @@ _AGENT_DEPTS = [
 
 
 def _canonical_agent_id(agent_id: str) -> str:
-    return {
-        'hanlin': 'hanlinyuan',
-    }.get(agent_id, agent_id)
+    return agent_id
 
 
 def _check_gateway_alive():
@@ -822,7 +889,7 @@ def _get_agent_session_status(agent_id):
     """
     alias_map = {
         'dalisi': ['dalisi'],
-        'hanlinyuan': ['hanlinyuan', 'hanlin'],
+        'hanlinyuan': ['hanlinyuan'],
     }
     aliases = alias_map.get(agent_id, [agent_id])
     total_sessions = 0
@@ -852,7 +919,7 @@ def _check_agent_process(agent_id):
     """检测是否有该 Agent 的 openclaw-agent 进程正在运行。"""
     alias_map = {
         'dalisi': ['dalisi'],
-        'hanlinyuan': ['hanlinyuan', 'hanlin'],
+        'hanlinyuan': ['hanlinyuan'],
     }
     aliases = alias_map.get(agent_id, [agent_id])
     try:
@@ -872,7 +939,7 @@ def _check_agent_workspace(agent_id):
     """检查 Agent 工作空间是否存在。"""
     alias_map = {
         'dalisi': ['dalisi'],
-        'hanlinyuan': ['hanlinyuan', 'hanlin'],
+        'hanlinyuan': ['hanlinyuan'],
     }
     aliases = alias_map.get(agent_id, [agent_id])
     return any((OCLAW_HOME / f'workspace-{aid}').is_dir() for aid in aliases)
@@ -1790,6 +1857,10 @@ def _normalize_progress_text(text):
     mapped = []
     has_protocol = False
     for ln in lines:
+        if ln.startswith('execCommand still running '):
+            has_protocol = True
+            mapped.append('【系统事件】命令仍在执行，已切换为后台会话跟踪（process/poll）')
+            continue
         if ln.startswith('subagents{'):
             has_protocol = True
             mapped.append('【系统事件】太子查询子代理列表')
@@ -2483,6 +2554,9 @@ def handle_advance_state(task_id, comment=''):
     remark = comment or default_remark
 
     task['state'] = next_state
+    task['org'] = _STATE_ORG_LABELS.get(next_state, task.get('org', ''))
+    if next_state == 'Done':
+        _finalize_todos_when_done(task)
     task['now'] = f'⬇️ 手动推进：{remark}'
     _append_flow_dedup(task, from_dept, to_dept, f'⬇️ 手动推进：{remark}')
     _scheduler_mark_progress(task, f'手动推进 {cur} -> {next_state}')
@@ -3011,6 +3085,8 @@ def main():
 
     global ALLOWED_ORIGIN
     ALLOWED_ORIGIN = args.cors
+
+    _ensure_legacy_kanban_json_compat()
 
     server = HTTPServer((args.host, args.port), Handler)
     log.info(f'三省六部看板启动 → http://{args.host}:{args.port}')
