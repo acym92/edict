@@ -3,7 +3,7 @@
 同步 openclaw.json 中的 agent 配置 → data/agent_config.json
 支持自动发现 agent workspace 下的 Skills 目录
 """
-import json, pathlib, datetime, logging
+import json, pathlib, datetime, logging, shutil
 from file_lock import atomic_json_write
 
 log = logging.getLogger('sync_agent_config')
@@ -166,6 +166,15 @@ def main():
         'defaultModel': default_model,
         'knownModels': merged_models,
         'dispatchChannel': existing_cfg.get('dispatchChannel', 'feishu'),
+        'dispatchPolicy': existing_cfg.get('dispatchPolicy', {
+            'timeoutSec': 300,
+            'maxRetries': 2,
+            'retryDelaySec': 5,
+            'agentOverrides': {
+                'hubu': {'timeoutSec': 420, 'maxRetries': 3},
+                'xingbu': {'timeoutSec': 420, 'maxRetries': 3},
+            },
+        }),
         'agents': result,
     }
     DATA.mkdir(exist_ok=True)
@@ -176,6 +185,8 @@ def main():
     deploy_soul_files()
     # 同步 scripts/ 到各 workspace（保持 kanban_update.py 等最新）
     sync_scripts_to_workspaces()
+    # 同步完整 research 资料到论文专线 workspace（翰林院/大理寺）
+    sync_research_to_paper_workspaces()
 
 
 # 项目 agents/ 目录名 → 运行时 agent_id 映射
@@ -272,6 +283,35 @@ def deploy_soul_files():
         sess_dir.mkdir(parents=True, exist_ok=True)
     if deployed:
         log.info(f'{deployed} SOUL.md files deployed')
+
+
+def sync_research_to_paper_workspaces():
+    """同步完整 research/ 到论文专线 workspace（hanlinyuan + dalisi）。"""
+    src_root = BASE / 'research'
+    if not src_root.is_dir():
+        return
+    synced = {'hanlinyuan': 0, 'dalisi': 0}
+    for runtime_id in ('hanlinyuan', 'dalisi'):
+        dst_root = pathlib.Path.home() / f'.openclaw/workspace-{runtime_id}' / 'research'
+        for src in src_root.rglob('*'):
+            if src.is_dir():
+                continue
+            rel = src.relative_to(src_root)
+            dst = dst_root / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                if dst.exists() and dst.stat().st_size == src.stat().st_size and int(dst.stat().st_mtime) >= int(src.stat().st_mtime):
+                    continue
+                shutil.copy2(src, dst)
+                synced[runtime_id] += 1
+            except Exception:
+                continue
+    total = synced['hanlinyuan'] + synced['dalisi']
+    if total:
+        log.info(
+            'research files synced (full copy): '
+            f'hanlinyuan={synced["hanlinyuan"]}, dalisi={synced["dalisi"]}'
+        )
 
 
 if __name__ == '__main__':

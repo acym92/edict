@@ -2140,8 +2140,6 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
         log.info(f'ℹ️ {task_id} 新状态 {new_state} 无对应 Agent，跳过自动派发')
         return
     dispatch_targets = [agent_id]
-    if is_paper_task and new_state == 'Hanlinyuan' and 'dalisi' not in dispatch_targets:
-        dispatch_targets.append('dalisi')
 
     # 尚书省派发闸门：必须先收到“门下省准奏”通知，才能推进到 Assigned 的自动派发。
     if (not is_paper_task) and new_state == 'Assigned' and not _has_menxia_approval_notice(task):
@@ -2236,9 +2234,24 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
             # Fix #139: dispatch channel 可配置（默认 feishu，支持 telegram/wecom/signal 等）
             _agent_cfg = read_json(DATA / 'agent_config.json', {})
             _channel = (_agent_cfg.get('dispatchChannel') or 'feishu').strip()
-            max_retries = 2
+            policy = _agent_cfg.get('dispatchPolicy') or {}
+
+            def _as_int(v, default):
+                try:
+                    iv = int(v)
+                    return iv if iv > 0 else default
+                except Exception:
+                    return default
+
+            default_timeout = _as_int(policy.get('timeoutSec', 300), 300)
+            default_retries = _as_int(policy.get('maxRetries', 2), 2)
+            retry_delay = _as_int(policy.get('retryDelaySec', 5), 5)
+            overrides = policy.get('agentOverrides') if isinstance(policy.get('agentOverrides'), dict) else {}
             last_err = ''
             for target in dispatch_targets:
+                target_policy = overrides.get(target) if isinstance(overrides.get(target), dict) else {}
+                target_timeout = _as_int(target_policy.get('timeoutSec', default_timeout), default_timeout)
+                max_retries = _as_int(target_policy.get('maxRetries', default_retries), default_retries)
                 msg = _msgs.get(target, (
                     f'📌 请处理任务\n'
                     f'任务ID: {task_id}\n'
@@ -2246,11 +2259,11 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                     f'⚠️ 看板已有此任务，请勿重复创建。直接用 kanban_update.py 更新状态。'
                 ))
                 cmd = ['openclaw', 'agent', '--agent', target, '-m', msg,
-                       '--deliver', '--channel', _channel, '--timeout', '300']
+                       '--deliver', '--channel', _channel, '--timeout', str(target_timeout)]
                 sent = False
                 for attempt in range(1, max_retries + 1):
                     log.info(f'🔄 自动派发 {task_id} → {target} (第{attempt}次)...')
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=310)
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=target_timeout + 10)
                     if result.returncode == 0:
                         log.info(f'✅ {task_id} 自动派发成功 → {target}')
                         _update_task_scheduler(task_id, lambda t, s: (
@@ -2270,7 +2283,7 @@ def dispatch_for_state(task_id, task, new_state, trigger='state-transition'):
                     log.warning(f'⚠️ {task_id} 自动派发失败(第{attempt}次): {last_err}')
                     if attempt < max_retries:
                         import time
-                        time.sleep(5)
+                        time.sleep(retry_delay)
                 if not sent:
                     log.error(f'❌ {task_id} 自动派发最终失败 → {target}')
                     _update_task_scheduler(task_id, lambda t, s: (
