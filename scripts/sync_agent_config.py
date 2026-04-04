@@ -40,6 +40,17 @@ def normalize_model(model_value, fallback='unknown'):
     return fallback
 
 
+def _resolve_taizi_model(agents_list, fallback_model):
+    """若 taizi 在 openclaw.json 中显式配置了模型，则作为全局默认模型。"""
+    for ag in agents_list:
+        if ag.get('id') != 'taizi':
+            continue
+        tm = normalize_model(ag.get('model', ''), '')
+        if tm:
+            return tm
+    return fallback_model
+
+
 def get_skills(workspace: str):
     skills_dir = pathlib.Path(workspace) / 'skills'
     skills = []
@@ -101,6 +112,7 @@ def main():
     agents_cfg = cfg.get('agents', {})
     default_model = normalize_model(agents_cfg.get('defaults', {}).get('model', {}), 'unknown')
     agents_list = agents_cfg.get('list', [])
+    taizi_default_model = _resolve_taizi_model(agents_list, default_model)
     merged_models = _collect_openclaw_models(cfg)
 
     result = []
@@ -114,8 +126,8 @@ def main():
         result.append({
             'id': ag_id,
             'label': meta['label'], 'role': meta['role'], 'duty': meta['duty'], 'emoji': meta['emoji'],
-            'model': normalize_model(ag.get('model', default_model), default_model),
-            'defaultModel': default_model,
+            'model': taizi_default_model,
+            'defaultModel': taizi_default_model,
             'workspace': workspace,
             'skills': get_skills(workspace),
             'allowAgents': ag.get('subagents', {}).get('allowAgents', []),
@@ -124,17 +136,17 @@ def main():
 
     # 补充不在 openclaw.json agents list 中的 agent（兼容旧版 main）
     EXTRA_AGENTS = {
-        'taizi':   {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-taizi'),
+        'taizi':   {'model': taizi_default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-taizi'),
                     'allowAgents': ['zhongshu', 'hanlinyuan', 'dalisi']},
-        'main':    {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-main'),
+        'main':    {'model': taizi_default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-main'),
                     'allowAgents': ['zhongshu','menxia','shangshu','hubu','libu','bingbu','xingbu','gongbu','libu_hr']},
-        'zaochao': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-zaochao'),
+        'zaochao': {'model': taizi_default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-zaochao'),
                     'allowAgents': []},
-        'libu_hr': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-libu_hr'),
+        'libu_hr': {'model': taizi_default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-libu_hr'),
                     'allowAgents': ['shangshu']},
-        'hanlinyuan': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-hanlinyuan'),
+        'hanlinyuan': {'model': taizi_default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-hanlinyuan'),
                    'allowAgents': ['taizi', 'dalisi']},
-        'dalisi': {'model': default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-dalisi'),
+        'dalisi': {'model': taizi_default_model, 'workspace': str(pathlib.Path.home() / '.openclaw/workspace-dalisi'),
                     'allowAgents': ['taizi', 'hanlinyuan']},
     }
     for ag_id, extra in EXTRA_AGENTS.items():
@@ -145,7 +157,7 @@ def main():
             'id': ag_id,
             'label': meta['label'], 'role': meta['role'], 'duty': meta['duty'], 'emoji': meta['emoji'],
             'model': extra['model'],
-            'defaultModel': default_model,
+            'defaultModel': taizi_default_model,
             'workspace': extra['workspace'],
             'skills': get_skills(extra['workspace']),
             'allowAgents': extra['allowAgents'],
@@ -163,7 +175,7 @@ def main():
 
     payload = {
         'generatedAt': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'defaultModel': default_model,
+        'defaultModel': taizi_default_model,
         'knownModels': merged_models,
         'dispatchChannel': existing_cfg.get('dispatchChannel', 'feishu'),
         'dispatchPolicy': existing_cfg.get('dispatchPolicy', {
@@ -187,6 +199,8 @@ def main():
     sync_scripts_to_workspaces()
     # 同步完整 research 资料到论文专线 workspace（翰林院/大理寺）
     sync_research_to_paper_workspaces()
+    # 初始化时：将 taizi agent 的 models/auth-profiles 同步到其他 agent
+    sync_taizi_agent_assets()
 
 
 # 项目 agents/ 目录名 → 运行时 agent_id 映射
@@ -250,34 +264,38 @@ def sync_scripts_to_workspaces():
 
 
 def deploy_soul_files():
-    """将项目 agents/xxx/SOUL.md 部署到 ~/.openclaw/workspace-xxx/soul.md"""
+    """将项目 agents/xxx/SOUL.md 部署到 ~/.openclaw/workspace-xxx/{soul.md,SOUL.md}"""
     agents_dir = BASE / 'agents'
     deployed = 0
     for proj_name, runtime_id in _SOUL_DEPLOY_MAP.items():
         src = agents_dir / proj_name / 'SOUL.md'
         if not src.exists():
             continue
-        ws_dst = pathlib.Path.home() / f'.openclaw/workspace-{runtime_id}' / 'soul.md'
-        ws_dst.parent.mkdir(parents=True, exist_ok=True)
-        # 只在内容不同时更新（避免不必要的写入）
         src_text = src.read_text(encoding='utf-8', errors='ignore')
-        try:
-            dst_text = ws_dst.read_text(encoding='utf-8', errors='ignore')
-        except FileNotFoundError:
-            dst_text = ''
-        if src_text != dst_text:
-            ws_dst.write_text(src_text, encoding='utf-8')
-            deployed += 1
+        ws_dir = pathlib.Path.home() / f'.openclaw/workspace-{runtime_id}'
+        ws_dir.mkdir(parents=True, exist_ok=True)
+        for name in ('soul.md', 'SOUL.md'):
+            ws_dst = ws_dir / name
+            # 只在内容不同时更新（避免不必要的写入）
+            try:
+                dst_text = ws_dst.read_text(encoding='utf-8', errors='ignore')
+            except FileNotFoundError:
+                dst_text = ''
+            if src_text != dst_text:
+                ws_dst.write_text(src_text, encoding='utf-8')
+                deployed += 1
         # 太子兼容：同步一份到 legacy main agent 目录
         if runtime_id == 'taizi':
-            ag_dst = pathlib.Path.home() / '.openclaw/agents/main/SOUL.md'
-            ag_dst.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                ag_text = ag_dst.read_text(encoding='utf-8', errors='ignore')
-            except FileNotFoundError:
-                ag_text = ''
-            if src_text != ag_text:
-                ag_dst.write_text(src_text, encoding='utf-8')
+            legacy_dir = pathlib.Path.home() / '.openclaw/agents/main'
+            legacy_dir.mkdir(parents=True, exist_ok=True)
+            for name in ('SOUL.md', 'soul.md'):
+                ag_dst = legacy_dir / name
+                try:
+                    ag_text = ag_dst.read_text(encoding='utf-8', errors='ignore')
+                except FileNotFoundError:
+                    ag_text = ''
+                if src_text != ag_text:
+                    ag_dst.write_text(src_text, encoding='utf-8')
         # 确保 sessions 目录存在
         sess_dir = pathlib.Path.home() / f'.openclaw/agents/{runtime_id}/sessions'
         sess_dir.mkdir(parents=True, exist_ok=True)
@@ -312,6 +330,44 @@ def sync_research_to_paper_workspaces():
             'research files synced (full copy): '
             f'hanlinyuan={synced["hanlinyuan"]}, dalisi={synced["dalisi"]}'
         )
+
+
+def sync_taizi_agent_assets():
+    """
+    初始化时同步 ~/.openclaw/agents/taizi/agent 下的所有内容到其他 agent。
+    仅在源目录、目标目录存在时执行；不存在则跳过。
+    """
+    src_agent_root = pathlib.Path.home() / '.openclaw' / 'agents' / 'taizi' / 'agent'
+    if not src_agent_root.is_dir():
+        log.info('skip taizi asset sync: source not found ~/.openclaw/agents/taizi/agent')
+        return
+
+    copied = 0
+    targets = [aid for aid in _SOUL_DEPLOY_MAP.values() if aid != 'taizi']
+    if 'main' not in targets:
+        targets.append('main')
+
+    for agent_id in targets:
+        dst_agent_root = pathlib.Path.home() / '.openclaw' / 'agents' / agent_id / 'agent'
+        if not dst_agent_root.is_dir():
+            log.info(f'skip taizi asset sync: target missing ~/.openclaw/agents/{agent_id}/agent')
+            continue
+        for src in src_agent_root.iterdir():
+            name = src.name
+            if not src.exists():
+                continue
+            dst = dst_agent_root / name
+            try:
+                if src.is_dir():
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(src, dst)
+                copied += 1
+            except Exception as e:
+                log.warning(f'failed to sync {name} -> {agent_id}: {e}')
+
+    if copied:
+        log.info(f'taizi agent assets synced to other agents: {copied} copies')
 
 
 if __name__ == '__main__':
