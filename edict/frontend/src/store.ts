@@ -162,7 +162,7 @@ export const useStore = create<AppStore>((set, get) => ({
 
   loadAll: async () => {
     const state = get();
-    await state.loadLive();
+    await Promise.all([state.loadLive(), state.loadAgentsStatus()]);
     if (['models', 'skills'].includes(state.activeTab)) {
       await state.loadAgentConfig();
     }
