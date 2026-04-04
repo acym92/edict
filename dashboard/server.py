@@ -2068,6 +2068,12 @@ _STATE_LABELS = {
 }
 
 
+def _is_session_task(task: dict) -> bool:
+    """运行态会话任务（OC-/MC-）不属于旨意主链路。"""
+    task_id = str(task.get('id') or '')
+    return task_id.startswith('OC-') or task_id.startswith('MC-')
+
+
 def _is_hanlinyuan_task(task: dict) -> bool:
     title = str(task.get('title') or '')
     org = str(task.get('org') or '')
@@ -2417,7 +2423,7 @@ def trigger_missing_done_notifications():
         if task.get('_doneNotifiedAt'):
             continue
         # 仅针对旨意主任务做回奏；运行态会话任务不走该链路。
-        if isSession(task):
+        if _is_session_task(task):
             continue
         task['_doneNotifiedAt'] = now_iso()
         pending.append(task)

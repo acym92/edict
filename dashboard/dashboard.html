@@ -947,18 +947,22 @@ function stateLabel(t){
 }
 
 /* ══ TASK CLASSIFICATION ══ */
-// 皇上的旨意：仅 JJC-* 开头
-function isEdict(t){ return /^JJC-/i.test(t.id||'') }
+// 系统会话：OC-* / MC-* 开头
+function isSession(t){ return /^(OC-|MC-)/i.test(t.id||'') }
+// 皇上的旨意 ID（经典链路）
+function isImperialTaskId(t){ return /^JJC-/i.test(t.id||'') }
 function isPaperEdict(t){
+  // 论文专线仅识别为“旨意任务”，不把 agent 会话误判进来
+  if(isSession(t)) return false;
   if((t.pipeline||'') === 'paper') return true;
   const title = String(t.title||'');
   const org = String(t.org||'');
   if(title.startsWith('论文') || org === '翰林院' || org === '大理寺') return true;
   return (t.flow_log||[]).some(f=>['翰林院','大理寺'].includes(f.from) || ['翰林院','大理寺'].includes(f.to));
 }
+// 旨意任务：经典链路 JJC-* + 论文专线任务
+function isEdict(t){ return isImperialTaskId(t) || isPaperEdict(t) }
 function isRegularEdict(t){ return isEdict(t) && !isPaperEdict(t) }
-// 系统会话：OC-* / MC-* 开头
-function isSession(t){ return /^(OC-|MC-)/i.test(t.id||'') }
 // 归档判定：Done/Cancelled 或手动标记 archived
 function isArchived(t){ return t.archived || ['Done','Cancelled'].includes(t.state) }
 let edictFilter = 'active';  // 'active' | 'archived' | 'all'
