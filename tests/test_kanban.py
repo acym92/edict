@@ -168,3 +168,12 @@ def test_progress_log_capped(tmp_path):
         assert len(t.get('progress_log', [])) == kb.MAX_PROGRESS_LOG
     finally:
         kb.TASKS_FILE = original
+
+
+def test_paper_lane_prefix_variants():
+    """paper lane should match any title that starts with 论文."""
+    assert kb._is_paper_lane_title('论文/主题 做一个RAG研究计划')
+    assert kb._is_paper_lane_title('论文 审稿 这是我的方法章节')
+    assert kb._is_paper_lane_title('论文：修改 引言与实验设计')
+    assert kb._is_paper_lane_title('论文')
+    assert not kb._is_paper_lane_title('请帮我写论文')
