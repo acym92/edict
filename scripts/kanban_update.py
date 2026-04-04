@@ -29,7 +29,7 @@
   # 🔥 实时进展汇报（Agent 主动调用，频率不限）
   python3 kanban_update.py progress JJC-20260223-012 "正在分析需求，拟定3个子方案" "1.调研技术选型|2.撰写设计文档|3.实现原型"
 """
-import json, pathlib, sys, subprocess, logging, os, re
+import json, pathlib, sys, subprocess, logging, os, re, difflib
 
 _BASE = pathlib.Path(__file__).resolve().parent.parent
 TASKS_FILE = _BASE / 'data' / 'tasks_source.json'
@@ -343,6 +343,13 @@ _VALID_TRANSITIONS = {
     'Done':      set(),       # 终态
     'Cancelled': set(),       # 终态
 }
+
+_KNOWN_STATES = sorted({
+    *STATE_ORG_MAP.keys(),
+    *(_VALID_TRANSITIONS.keys()),
+    *(s for targets in _VALID_TRANSITIONS.values() for s in targets),
+    'Inbox', 'Pending', 'Next',
+})
 
 _HANLIN_ONLY_TRANSITIONS = {
     'Pending': {'Taizi', 'Cancelled'},
@@ -664,13 +671,39 @@ def cmd_todo(task_id, todo_id, title, status='not-started', detail=''):
     _trigger_refresh()
     log.info(f'✅ {task_id} todo [{result_info[0]}/{result_info[1]}]: {todo_id} → {status}')
 
+def cmd_state_info(task_id):
+    """查询任务当前状态（兼容 state 仅传 task_id 的场景）。"""
+    tasks = load()
+    t = find_task(tasks, task_id)
+    if not t:
+        print(f'错误：任务 {task_id} 不存在')
+        return 1
+    state = t.get('state', '-')
+    org = t.get('org', '-')
+    now = t.get('now', '-') or '-'
+    updated_at = t.get('updatedAt', '-') or '-'
+    print(f'[state] {task_id} | state={state} | org={org} | updatedAt={updated_at} | now={now}')
+    return 0
+
+
+def _validate_state_name(state_name: str):
+    """校验状态名，给出拼写建议，避免误把说明文本当状态。"""
+    candidate = (state_name or '').strip()
+    if not candidate:
+        return False, []
+    if candidate in _KNOWN_STATES:
+        return True, []
+    return False, difflib.get_close_matches(candidate, _KNOWN_STATES, n=3, cutoff=0.45)
+
+
 _CMD_MIN_ARGS = {
-    'create': 6, 'state': 3, 'flow': 5, 'done': 2, 'block': 3, 'todo': 4, 'progress': 3,
+    'create': 6, 'state': 2, 'flow': 5, 'done': 2, 'block': 3, 'todo': 4, 'progress': 3,
 }
 
 _SHORT_USAGE = (
     "用法: python3 scripts/kanban_update.py <cmd> [...]\n"
     "常用: create/state/flow/done/todo/progress\n"
+    "提示: state <task_id> 可查询当前状态；state <task_id> <new_state> [说明] 可更新状态\n"
     "查看完整帮助: python3 scripts/kanban_update.py help"
 )
 
@@ -689,7 +722,17 @@ if __name__ == '__main__':
         sys.exit(1)
     if cmd == 'create':
         cmd_create(args[1], args[2], args[3], args[4], args[5], args[6] if len(args)>6 else None)
-    elif cmd == 'state':
+    elif cmd in ('state', 'status'):
+        if len(args) == 2:
+            sys.exit(cmd_state_info(args[1]))
+        ok, suggestions = _validate_state_name(args[2])
+        if not ok:
+            print(f'错误：未知状态 "{args[2]}"')
+            if suggestions:
+                print('你是不是想写：' + ' / '.join(suggestions))
+            print('可用状态：' + ', '.join(_KNOWN_STATES))
+            print(_SHORT_USAGE)
+            sys.exit(1)
         cmd_state(args[1], args[2], args[3] if len(args)>3 else None)
     elif cmd == 'flow':
         cmd_flow(args[1], args[2], args[3], args[4])
@@ -737,5 +780,6 @@ if __name__ == '__main__':
             elapsed=kw.get('elapsed', 0),
         )
     else:
-        print(__doc__)
+        print(f'错误：未知命令 "{cmd}"')
+        print(_SHORT_USAGE)
         sys.exit(1)
