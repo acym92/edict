@@ -1,6 +1,6 @@
 import { useStore, isEdict, STATE_LABEL, timeAgo } from '../store';
 import type { Task } from '../api';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 // Agent maps built from agentConfig
 function useAgentMaps() {
@@ -84,26 +84,29 @@ export default function SessionsPanel() {
   const tasks = liveStatus?.tasks || [];
   const sessions = tasks.filter((t) => !isEdict(t));
   const cfgAgents = useStore((s) => s.agentConfig?.agents || []);
-
-  let filtered = sessions;
-  if (sessFilter === 'active') filtered = sessions.filter(isSessionActive);
-  else if (sessFilter !== 'all') filtered = sessions.filter((t) => extractAgent(t) === sessFilter);
-
-  // 使用 agentConfig 全量展示，避免只显示少数活跃 agent。
-  const activeSet = new Set(sessions.filter(isSessionActive).map(extractAgent));
   const allAgentIds = useMemo(
     () => [...new Set([...cfgAgents.map((a) => a.id), ...sessions.map(extractAgent)])],
     [cfgAgents, sessions],
   );
+  const activeSet = useMemo(
+    () => new Set(sessions.filter(isSessionActive).map(extractAgent)),
+    [sessions],
+  );
+
+  useEffect(() => {
+    if (sessFilter !== 'all' && sessFilter !== 'active') setSessFilter('all');
+  }, [sessFilter, setSessFilter]);
+
+  let filtered = sessions;
+  if (sessFilter === 'active') filtered = sessions.filter(isSessionActive);
 
   return (
     <div>
       {/* Filters */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {[
-          { key: 'all', label: `全部 (${sessions.length})` },
+          { key: 'all', label: `全部 (${allAgentIds.length})` },
           { key: 'active', label: `活跃 (${activeSet.size})` },
-          ...allAgentIds.map((id) => ({ key: id, label: labelMap[id] || id })),
         ].map((f) => (
           <span
             key={f.key}

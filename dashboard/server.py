@@ -44,6 +44,16 @@ BASE = pathlib.Path(__file__).parent
 DIST = BASE / 'dist'          # React 构建产物 (npm run build)
 DATA = BASE.parent / "data"
 SCRIPTS = BASE.parent / 'scripts'
+MIRROR_SESSIONS_ROOT = BASE.parent / 'data' / 'agent_sessions'
+
+
+def _resolve_agent_sessions_dir(agent_id: str) -> pathlib.Path:
+    """优先读取 OpenClaw runtime，会话不可达时回退到 data 镜像目录。"""
+    primary = OCLAW_HOME / 'agents' / agent_id / 'sessions'
+    if primary.exists():
+        return primary
+    mirror = MIRROR_SESSIONS_ROOT / agent_id
+    return mirror
 
 # 静态资源 MIME 类型
 _MIME_TYPES = {
@@ -245,16 +255,38 @@ def handle_delete_task(task_id):
 
 
 def update_task_todos(task_id, todos):
-    """Update the todos list for a task."""
+    """Update the todos list for a task.
+
+    当 todos 全部完成且任务仍在执行阶段时，自动推进到 Review，避免面板仍显示“执行中”。
+    """
     tasks = load_tasks()
     task = next((t for t in tasks if t.get('id') == task_id), None)
     if not task:
         return {'ok': False, 'error': f'任务 {task_id} 不存在'}
 
     task['todos'] = todos
+
+    valid_todos = [td for td in todos if isinstance(td, dict)]
+    has_todos = len(valid_todos) > 0
+    all_done = has_todos and all((td.get('status') == 'completed') for td in valid_todos)
+    cur_state = task.get('state')
+    auto_advanced = False
+
+    # 执行阶段全部完成后自动进入审查阶段
+    if all_done and cur_state in ('Assigned', 'Next', 'Doing'):
+        task['state'] = 'Review'
+        task['now'] = '✅ 子任务已全部完成，进入审查'
+        _append_flow_dedup(task, '六部', '尚书省', '✅ 子任务全部完成，自动进入审查')
+        auto_advanced = True
+
     task['updatedAt'] = now_iso()
     save_tasks(tasks)
-    return {'ok': True, 'message': f'{task_id} todos 已更新'}
+    return {
+        'ok': True,
+        'message': f'{task_id} todos 已更新',
+        'autoAdvanced': auto_advanced,
+        'state': task.get('state'),
+    }
 
 
 def read_skill_content(agent_id, skill_name):
@@ -1457,7 +1489,7 @@ def get_agent_activity(agent_id, limit=30, task_id=None):
     """从 Agent 的 session jsonl 读取最近活动。
     如果 task_id 不为空，只返回提及该 task_id 的相关条目。
     """
-    sessions_dir = OCLAW_HOME / 'agents' / agent_id / 'sessions'
+    sessions_dir = _resolve_agent_sessions_dir(agent_id)
     if not sessions_dir.exists():
         return []
 
@@ -1526,7 +1558,7 @@ def get_agent_activity_by_keywords(agent_id, keywords, limit=20):
     """从 agent session 中按关键词匹配获取活动条目。
     找到包含关键词的 session 文件，只读该文件的活动。
     """
-    sessions_dir = OCLAW_HOME / 'agents' / agent_id / 'sessions'
+    sessions_dir = _resolve_agent_sessions_dir(agent_id)
     if not sessions_dir.exists():
         return []
 
@@ -1612,7 +1644,7 @@ def get_agent_latest_segment(agent_id, limit=20):
     """获取 Agent 最新一轮对话段（最后一条 user 消息起的所有内容）。
     用于活跃任务没有精确匹配时，展示 Agent 的实时工作状态。
     """
-    sessions_dir = OCLAW_HOME / 'agents' / agent_id / 'sessions'
+    sessions_dir = _resolve_agent_sessions_dir(agent_id)
     if not sessions_dir.exists():
         return []
 
