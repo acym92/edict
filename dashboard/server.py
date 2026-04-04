@@ -1354,6 +1354,13 @@ def _parse_activity_entry(item):
         code = details.get('exitCode')
         if code is None:
             code = details.get('code', details.get('status'))
+        # 兼容字符串状态：accepted/ok/success 视为成功，避免前端误显示红叉。
+        if isinstance(code, str):
+            norm = code.strip().lower()
+            if norm in ('ok', 'accepted', 'success', 'succeeded', 'done', 'completed', 'pass', 'passed'):
+                code = 0
+            elif norm in ('error', 'failed', 'fail', 'timeout', 'timed_out', 'rejected', 'denied'):
+                code = 1
         output = ''
         for c in msg.get('content', []) or []:
             if c.get('type') == 'text' and c.get('text'):
