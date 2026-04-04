@@ -31,7 +31,31 @@
 """
 import json, pathlib, sys, subprocess, logging, os, re
 
-_BASE = pathlib.Path(__file__).resolve().parent.parent
+
+def _resolve_project_base() -> pathlib.Path:
+    """
+    解析看板数据根目录。
+    兼容 agent workspace（~/.openclaw/workspace-*/scripts）场景，避免把任务写进各自隔离目录。
+    """
+    # 1) 显式环境变量（最高优先级）
+    for key in ('EDICT_PROJECT_DIR', 'OPENCLAW_PROJECT_DIR'):
+        val = (os.environ.get(key) or '').strip()
+        if not val:
+            continue
+        p = pathlib.Path(val).expanduser().resolve()
+        if (p / 'dashboard' / 'server.py').exists():
+            return p
+
+    # 2) 常见开发目录（Codex 容器默认）
+    default_repo = pathlib.Path('/workspace/edict')
+    if (default_repo / 'dashboard' / 'server.py').exists():
+        return default_repo
+
+    # 3) 当前脚本所在仓库（兜底）
+    return pathlib.Path(__file__).resolve().parent.parent
+
+
+_BASE = _resolve_project_base()
 TASKS_FILE = _BASE / 'data' / 'tasks_source.json'
 REFRESH_SCRIPT = _BASE / 'scripts' / 'refresh_live_data.py'
 
@@ -211,6 +235,11 @@ def _is_valid_task_title(title):
     return True, ''
 
 
+def _normalize_state_name(state: str) -> str:
+    """统一状态名（当前仅保留 Hanlinyuan）。"""
+    return state
+
+
 def cmd_create(task_id, title, state, org, official, remark=None):
     """新建任务（收旨时立即调用）"""
     # 清洗标题（剥离元数据）
@@ -221,6 +250,7 @@ def cmd_create(task_id, title, state, org, official, remark=None):
         log.warning(f'⚠️ 拒绝创建 {task_id}：{reason}')
         print(f'[看板] 拒绝创建：{reason}', flush=True)
         return
+    state = _normalize_state_name(state)
     is_paper_lane = _is_paper_lane_title(title) or state in ('Hanlinyuan', 'Dalisi') or org in ('翰林院', '大理寺')
     # 常规三省六部流程统一从「皇上 -> 太子」开始，避免出现错序的「皇上 -> 中书省」。
     initial_state = state
@@ -413,7 +443,7 @@ def cmd_state(task_id, new_state, now_text=None):
     """更新任务状态（原子操作，含流转合法性校验）"""
     old_state = [None]
     rejected = [False]
-    target_state = new_state
+    target_state = _normalize_state_name(new_state)
     def modifier(tasks):
         t = find_task(tasks, task_id)
         if not t:

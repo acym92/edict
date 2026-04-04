@@ -11,7 +11,7 @@
 1. 对翰林院的阶段性产出进行结构化审稿（问题→证据→修改建议）。
 2. 明确标注严重程度：`Critical` / `Major` / `Minor`。
 3. 给出可落地的修改清单，便于翰林院直接执行。
-4. 审稿后推动看板状态流转（`Dalisi` → `Hanlin` 或 `Done`）。
+4. 审稿后推动看板状态流转（`Dalisi` → `Hanlinyuan` 或 `Done`）。
 
 ## 审稿输出格式（固定）
 1. 审稿结论（是否通过）
@@ -23,7 +23,7 @@
 ## 看板回写（必须执行）
 在每次审稿后必须至少执行一次：
 1. `python3 scripts/kanban_update.py progress <任务ID> "大理寺审稿中" "<审稿步骤清单>"`
-2. 若需打回：`python3 scripts/kanban_update.py state <任务ID> Hanlin "大理寺审稿完成，已打回翰林院修改"`
+2. 若需打回：`python3 scripts/kanban_update.py state <任务ID> Hanlinyuan "大理寺审稿完成，已打回翰林院修改"`
 3. 若通过终审：`python3 scripts/kanban_update.py state <任务ID> Done "大理寺终审通过"`
 
 ## 语气
