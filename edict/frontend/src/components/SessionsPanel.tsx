@@ -29,11 +29,7 @@ function extractAgent(t: Task): string {
 
 function isSessionActive(t: Task): boolean {
   const st = t.state || '';
-  if (['Done', 'Cancelled'].includes(st)) {
-    const hb = t.heartbeat?.status || '';
-    return hb === 'active' || hb === 'warn';
-  }
-  return true;
+  return !['Done', 'Cancelled'].includes(st);
 }
 
 function humanTitle(t: Task, labelMap: Record<string, string>): string {
@@ -83,13 +79,9 @@ export default function SessionsPanel() {
 
   const tasks = liveStatus?.tasks || [];
   const sessions = tasks.filter((t) => !isEdict(t));
-  const cfgAgents = useStore((s) => s.agentConfig?.agents || []);
-  const allAgentIds = useMemo(
-    () => [...new Set([...cfgAgents.map((a) => a.id), ...sessions.map(extractAgent)])],
-    [cfgAgents, sessions],
-  );
-  const activeSet = useMemo(
-    () => new Set(sessions.filter(isSessionActive).map(extractAgent)),
+  const allSessionsCount = sessions.length;
+  const activeSessionsCount = useMemo(
+    () => sessions.filter(isSessionActive).length,
     [sessions],
   );
 
@@ -105,8 +97,8 @@ export default function SessionsPanel() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {[
-          { key: 'all', label: `全部 (${allAgentIds.length})` },
-          { key: 'active', label: `活跃 (${activeSet.size})` },
+          { key: 'all', label: `全部 (${allSessionsCount})` },
+          { key: 'active', label: `活跃 (${activeSessionsCount})` },
         ].map((f) => (
           <span
             key={f.key}
