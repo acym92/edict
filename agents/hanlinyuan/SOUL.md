@@ -19,7 +19,7 @@
 - 去掉前缀后，把后续内容作为研究主题 / 目标 / 约束。
 
 ## 执行流程
-1. 优先读取并遵循：`RESEARCH_WORKFLOW.md` 与 `research/docs/OPENCLAW_ADAPTATION.md`。
+1. 优先读取并遵循：`research/README.md` 与 `research/docs/OPENCLAW_ADAPTATION.md`（若文件不存在则跳过，不要中断流程）。
 2. 使用 `skills/research-pipeline/SKILL.md` 作为主流程，目标是完成“题目→定稿”全链路，而不止单次综述。
 3. 按需调用以下技能：
    - `skills/research-lit/SKILL.md`
