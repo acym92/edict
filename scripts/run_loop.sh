@@ -42,6 +42,8 @@ rotate_log() {
 SCAN_INTERVAL="${2:-120}"  # 巡检间隔(秒), 默认 120
 SCAN_COUNTER=0
 SCRIPT_TIMEOUT=30  # 单个脚本最大执行时间(秒)
+MODEL_DIFF_INTERVAL=300  # 模型配置一致性日志周期(秒)
+MODEL_DIFF_COUNTER=0
 
 echo "🏛️  三省六部数据刷新循环启动 (PID=$$)"
 echo "   脚本目录: $SCRIPT_DIR"
@@ -81,6 +83,15 @@ while true; do
     SCAN_COUNTER=0
     curl -s -X POST http://0.0.0.0:7891/api/scheduler-scan \
       -H 'Content-Type: application/json' -d '{"thresholdSec":180}' >> "$LOG" 2>&1 || true
+  fi
+
+  # 定期记录模型同步信息（仅写日志，不影响主流程）
+  MODEL_DIFF_COUNTER=$((MODEL_DIFF_COUNTER + INTERVAL))
+  if (( MODEL_DIFF_COUNTER >= MODEL_DIFF_INTERVAL )); then
+    MODEL_DIFF_COUNTER=0
+    echo "$(date '+%H:%M:%S') [loop] 执行模型同步校验..." >> "$LOG"
+    curl -s http://0.0.0.0:7891/api/agent-model-diff >> "$LOG" 2>&1 || true
+    echo "" >> "$LOG"
   fi
 
   sleep "$INTERVAL"

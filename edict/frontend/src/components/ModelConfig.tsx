@@ -47,6 +47,13 @@ export default function ModelConfig() {
 
   const models = (agentConfig.knownModels || []).map((m) => ({ id: m.id, l: m.label, p: m.provider }));
 
+  const getModelsForAgent = (agentModel: string) => {
+    if (!agentModel) return models;
+    const hasCurrent = models.some((m) => m.id === agentModel);
+    if (hasCurrent) return models;
+    return [{ id: agentModel, l: `${agentModel}（当前配置）`, p: 'Custom' }, ...models];
+  };
+
   const handleSelect = (agentId: string, val: string) => {
     setSelMap((p) => ({ ...p, [agentId]: val }));
   };
@@ -74,6 +81,15 @@ export default function ModelConfig() {
     }
   };
 
+  const checkModelSync = async () => {
+    try {
+      await api.agentModelDiff();
+      toast('模型同步校验已执行（详情请查看服务端日志）', 'ok');
+    } catch {
+      toast('模型同步校验失败：无法连接服务器', 'err');
+    }
+  };
+
   return (
     <div>
       <div className="model-grid">
@@ -97,15 +113,11 @@ export default function ModelConfig() {
                 当前: <b>{ag.model}</b>
               </div>
               <select className="msel" value={sel} onChange={(e) => handleSelect(ag.id, e.target.value)}>
-                {models.length === 0 ? (
-                  <option value={ag.model}>{ag.model} (当前配置)</option>
-                ) : (
-                  models.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.l} ({m.p})
-                    </option>
-                  ))
-                )}
+                {getModelsForAgent(ag.model).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.l} ({m.p})
+                  </option>
+                ))}
               </select>
               <div className="mc-btns">
                 <button className="btn btn-p" disabled={!changed} onClick={() => applyModel(ag.id)}>
@@ -119,6 +131,10 @@ export default function ModelConfig() {
             </div>
           );
         })}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <button className="btn btn-g" onClick={checkModelSync}>校验模型同步</button>
       </div>
 
       {/* Dispatch Channel 配置 */}

@@ -255,6 +255,22 @@ export interface SchedulerStateData {
   stalledSec?: number;
 }
 
+export interface AgentModelDiffItem {
+  agentId: string;
+  openclawModel: string;
+  edictModel: string;
+  matched: boolean;
+}
+
+export interface AgentModelDiffResult {
+  ok: boolean;
+  error?: string;
+  comparedAt?: string;
+  defaultsModel?: string;
+  mismatches?: number;
+  items?: AgentModelDiffItem[];
+}
+
 export interface SkillContentResult {
   ok: boolean;
   name?: string;

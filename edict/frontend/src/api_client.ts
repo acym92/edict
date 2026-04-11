@@ -2,6 +2,7 @@ import type {
   ActionResult,
   AgentConfig,
   AgentsStatusData,
+  AgentModelDiffResult,
   ChangeLogEntry,
   CourtDiscussResult,
   CreateTaskPayload,
@@ -41,6 +42,7 @@ export const api = {
   morningBrief: () => fetchJ<MorningBrief>(`${API_BASE}/api/morning-brief`),
   morningConfig: () => fetchJ<SubConfig>(`${API_BASE}/api/morning-config`),
   agentsStatus: () => fetchJ<AgentsStatusData>(`${API_BASE}/api/agents-status`),
+  agentModelDiff: () => fetchJ<AgentModelDiffResult>(`${API_BASE}/api/agent-model-diff`),
 
   taskActivity: (id: string) =>
     fetchJ<TaskActivityData>(`${API_BASE}/api/task-activity/${encodeURIComponent(id)}`),
