@@ -12,7 +12,7 @@ Endpoints:
   GET  /api/last-result        → data/last_model_change_result.json
 """
 import json, pathlib, subprocess, sys, threading, argparse, datetime, logging, re, os
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
@@ -39,6 +39,9 @@ _DEFAULT_ORIGINS = {
     'http://0.0.0.0:5173', 'http://0.0.0.0:5173',  # Vite dev server
 }
 _SAFE_NAME_RE = re.compile(r'^[a-zA-Z0-9_\-\u4e00-\u9fff]+$')
+_GATEWAY_PROBE_FAIL_THRESHOLD = 3
+_gateway_probe_fail_streak = 0
+_gateway_probe_last_ok_at = 0.0
 
 BASE = pathlib.Path(__file__).parent
 DIST = BASE / 'dist'          # React 构建产物 (npm run build)
@@ -873,14 +876,25 @@ def _check_gateway_alive():
         return False
 
 
-def _check_gateway_probe():
-    """通过 HTTP probe 检测 Gateway 是否响应。"""
-    try:
-        from urllib.request import urlopen
-        resp = urlopen('http://0.0.0.0:18789/', timeout=3)
-        return resp.status == 200
-    except Exception:
-        return False
+def _check_gateway_probe(timeout_sec: int = 5):
+    """通过 HTTP probe 检测 Gateway 是否响应（多端点兜底）。"""
+    probe_urls = [
+        'http://127.0.0.1:18789/health',
+        'http://127.0.0.1:18789/',
+        'http://0.0.0.0:18789/health',
+        'http://0.0.0.0:18789/',
+    ]
+    last_error = ''
+    for url in probe_urls:
+        try:
+            from urllib.request import urlopen
+            resp = urlopen(url, timeout=timeout_sec)
+            if resp.status == 200:
+                return True, url, ''
+            last_error = f'status={resp.status}'
+        except Exception as e:
+            last_error = str(e)
+    return False, '', last_error
 
 
 def _get_agent_session_status(agent_id):
@@ -954,8 +968,18 @@ def get_agents_status():
     - hasWorkspace: 工作空间是否存在
     - processAlive: 是否有进程在运行
     """
+    global _gateway_probe_fail_streak, _gateway_probe_last_ok_at
     gateway_alive = _check_gateway_alive()
-    gateway_probe = _check_gateway_probe() if gateway_alive else False
+    gateway_probe, probe_url, probe_error = (False, '', '')
+    if gateway_alive:
+        gateway_probe, probe_url, probe_error = _check_gateway_probe(timeout_sec=5)
+        if gateway_probe:
+            _gateway_probe_fail_streak = 0
+            _gateway_probe_last_ok_at = datetime.datetime.now().timestamp()
+        else:
+            _gateway_probe_fail_streak += 1
+    else:
+        _gateway_probe_fail_streak = 0
 
     agents = []
     seen_ids = set()
@@ -1025,7 +1049,19 @@ def get_agents_status():
         'gateway': {
             'alive': gateway_alive,
             'probe': gateway_probe,
-            'status': '🟢 运行中' if gateway_probe else ('🟡 进程在但无响应' if gateway_alive else '🔴 未启动'),
+            'status': (
+                '🟢 运行中'
+                if gateway_probe
+                else (
+                    f'🟡 运行中（探针重试中 {_gateway_probe_fail_streak}/{_GATEWAY_PROBE_FAIL_THRESHOLD}）'
+                    if gateway_alive and _gateway_probe_fail_streak < _GATEWAY_PROBE_FAIL_THRESHOLD
+                    else ('🟡 进程在但无响应' if gateway_alive else '🔴 未启动')
+                )
+            ),
+            'probeUrl': probe_url,
+            'probeError': probe_error,
+            'probeFailStreak': _gateway_probe_fail_streak,
+            'probeLastOkAt': _gateway_probe_last_ok_at,
         },
         'agents': agents,
         'checkedAt': now_iso(),
@@ -3076,6 +3112,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
 
 
+class DashboardHTTPServer(ThreadingHTTPServer):
+    """多线程 HTTP Server，避免单个慢请求拖死整个看板页面。"""
+    daemon_threads = True
+    allow_reuse_address = True
+    request_queue_size = 128
+
+
 def main():
     parser = argparse.ArgumentParser(description='三省六部看板服务器')
     parser.add_argument('--port', type=int, default=7891)
@@ -3088,7 +3131,7 @@ def main():
 
     _ensure_legacy_kanban_json_compat()
 
-    server = HTTPServer((args.host, args.port), Handler)
+    server = DashboardHTTPServer((args.host, args.port), Handler)
     log.info(f'三省六部看板启动 → http://{args.host}:{args.port}')
     print(f'   按 Ctrl+C 停止')
 

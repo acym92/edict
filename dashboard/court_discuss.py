@@ -194,11 +194,16 @@ def advance_discussion(session_id: str, user_message: str = None,
 
     # 添加到历史
     for msg in new_messages:
+        # 统一约束发言长度，避免一句话带过
+        official_id = msg.get('official_id', '')
+        profile = OFFICIAL_PROFILES.get(official_id, {})
+        normalized = _fit_content_length(msg.get('content', ''), profile.get('role', '本部'))
+
         session['messages'].append({
             'type': 'official',
-            'official_id': msg.get('official_id', ''),
+            'official_id': official_id,
             'official_name': msg.get('name', ''),
-            'content': msg.get('content', ''),
+            'content': normalized,
             'emotion': msg.get('emotion', 'neutral'),
             'action': msg.get('action'),
             'timestamp': time.time(),
@@ -538,12 +543,12 @@ def _llm_discuss(session: dict, user_message: str = None, decree: str = None) ->
 {decree_section}
 ## 任务
 生成每位官员的下一条发言。要求：
-1. 每位官员说1-3句话，像真实朝堂讨论一样
+1. 每位官员发言必须在200字以上、500字以内，并包含“立场判断 + 具体理由/依据 + 可执行建议”三个要素，避免一句话带过
 2. **每位官员必须从自己的职责领域出发发言**——户部谈成本和数据、兵部谈安全和运维、工部谈技术实现、刑部谈质量和合规、礼部谈文档和规范、吏部谈人员安排、中书谈规划方案、门下谈审查风险、尚书谈执行调度、太子谈创新和大局，每个人关注的焦点不同
 3. 官员之间要有互动——回应、反驳、支持、补充，尤其是不同部门的视角碰撞
 4. 保持每位官员独特的说话风格和人格特征
 5. 讨论要围绕议题推进、有实质性观点，不要泛泛而谈
-6. 如果皇帝发言了，官员要恰当回应（但不要阿谀）
+6. 如果皇帝发言了，所有官员都要先回应皇帝关切，再补充本部门观点（但不要阿谀）
 7. 可包含动作描写用*号*包裹（如 *拱手施礼*）
 
 输出JSON格式：
@@ -560,7 +565,7 @@ def _llm_discuss(session: dict, user_message: str = None, decree: str = None) ->
     content = _llm_complete(
         '你是一个古代朝堂群聊模拟器，严格输出JSON格式。',
         prompt,
-        max_tokens=1500,
+        max_tokens=2200,
     )
 
     if not content:
@@ -669,6 +674,29 @@ _SIMULATED_RESPONSES = {
 import random
 
 
+def _fit_content_length(content: str, role_hint: str = '', min_chars: int = 200, max_chars: int = 500) -> str:
+    """将发言约束在指定字数区间，优先补足信息密度，超长时截断。"""
+    if not content:
+        content = '臣请先明示目标，再分解步骤推进执行。'
+
+    fillers = [
+        '臣建议同步明确里程碑、验收口径与责任边界，避免推进中反复返工。',
+        '同时应设置风险观察点与兜底预案，一旦指标异常即可快速纠偏。',
+        '若获准施行，臣愿先行提交阶段性回报，确保朝议决策可追踪、可复盘。',
+    ]
+    if role_hint:
+        fillers.insert(0, f'结合{role_hint}职责，臣会优先给出可量化目标，并按轻重缓急推进。')
+
+    idx = 0
+    while len(content) < min_chars:
+        content = f"{content} {fillers[idx % len(fillers)]}"
+        idx += 1
+
+    if len(content) > max_chars:
+        content = content[:max_chars].rstrip('，,；;。 ') + '。'
+    return content
+
+
 def _simulated_discuss(session: dict, user_message: str = None, decree: str = None) -> list[dict]:
     """无 LLM 时的规则生成讨论内容。"""
     officials = session['officials']
@@ -682,19 +710,30 @@ def _simulated_discuss(session: dict, user_message: str = None, decree: str = No
         if not pool:
             pool = ['臣附议。', '臣有不同看法。', '臣需要再想想。']
 
-        content = random.choice(pool)
+        primary = random.choice(pool)
+        secondary = random.choice(pool)
+        if len(pool) > 1:
+            for _ in range(3):
+                if secondary != primary:
+                    break
+                secondary = random.choice(pool)
+
+        content = f"{primary} 另外，臣建议尽快明确下一步负责人与时间节点。"
+        if secondary != primary:
+            content = f"{content} {secondary}"
+
         emotions = ['neutral', 'confident', 'thinking', 'amused', 'worried']
 
         # 如果皇帝发言了或有天命降临，调整回应
         if decree:
-            content = f'*面露惊色* 天命如此，{content}'
+            content = f'*面露惊色* 天命如此，臣等当即调整方略。{content}'
         elif user_message:
-            content = f'回禀陛下，{content}'
+            content = f'回禀陛下，臣已领会关切。{content}'
 
         messages.append({
             'official_id': oid,
             'name': o['name'],
-            'content': content,
+            'content': _fit_content_length(content, o.get('role', '本部')),
             'emotion': random.choice(emotions),
             'action': None,
         })
