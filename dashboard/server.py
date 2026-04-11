@@ -58,6 +58,65 @@ def _resolve_agent_sessions_dir(agent_id: str) -> pathlib.Path:
     mirror = MIRROR_SESSIONS_ROOT / agent_id
     return mirror
 
+
+def _normalize_model_id(model_value, fallback=''):
+    """兼容 string / object 两种模型配置表示，统一提取模型 ID。"""
+    if isinstance(model_value, str):
+        return model_value.strip() or fallback
+    if isinstance(model_value, dict):
+        return (model_value.get('primary') or model_value.get('id') or model_value.get('name') or fallback).strip()
+    return fallback
+
+
+def get_agent_model_diff():
+    """对比 OpenClaw 源配置与 Edict 已同步配置中的 agent 模型是否一致。"""
+    openclaw_path = OCLAW_HOME / 'openclaw.json'
+    if not openclaw_path.exists():
+        log.warning(f'[model-diff] openclaw.json 不存在: {openclaw_path}')
+        return {'ok': True, 'comparedAt': now_iso(), 'defaultsModel': '', 'mismatches': 0, 'items': []}
+
+    try:
+        ocfg = json.loads(openclaw_path.read_text(encoding='utf-8'))
+    except Exception as e:
+        log.warning(f'[model-diff] openclaw.json 读取失败: {e}')
+        return {'ok': True, 'comparedAt': now_iso(), 'defaultsModel': '', 'mismatches': 0, 'items': []}
+
+    ecfg = read_json(DATA / 'agent_config.json', {})
+    eagents = {a.get('id'): a for a in (ecfg.get('agents') or []) if isinstance(a, dict)}
+
+    defaults_model = _normalize_model_id(((ocfg.get('agents') or {}).get('defaults') or {}).get('model'), '')
+    rows = []
+    for ag in ((ocfg.get('agents') or {}).get('list') or []):
+        aid = (ag or {}).get('id')
+        if not aid:
+            continue
+        oc_model = _normalize_model_id((ag or {}).get('model'), defaults_model)
+        ed_model = _normalize_model_id((eagents.get(aid) or {}).get('model'), '')
+        matched = bool(oc_model) and oc_model == ed_model
+        rows.append({
+            'agentId': aid,
+            'openclawModel': oc_model,
+            'edictModel': ed_model,
+            'matched': matched,
+        })
+
+    mismatches = [r for r in rows if not r.get('matched')]
+    if mismatches:
+        log.warning(f'[model-diff] 发现 {len(mismatches)} 个模型不一致')
+        for row in mismatches[:10]:
+            log.warning(
+                f"[model-diff] {row.get('agentId')}: openclaw={row.get('openclawModel')} edict={row.get('edictModel')}"
+            )
+    else:
+        log.info('[model-diff] agent 模型配置一致')
+    return {
+        'ok': True,
+        'comparedAt': now_iso(),
+        'defaultsModel': defaults_model,
+        'mismatches': len(mismatches),
+        'items': rows,
+    }
+
 # 静态资源 MIME 类型
 _MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -2756,6 +2815,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(get_scheduler_state(task_id))
         elif p == '/api/agents-status':
             self.send_json(get_agents_status())
+        elif p == '/api/agent-model-diff':
+            self.send_json(get_agent_model_diff())
         elif p.startswith('/api/agent-activity/'):
             agent_id = p.replace('/api/agent-activity/', '')
             if not agent_id or not _SAFE_NAME_RE.match(agent_id):

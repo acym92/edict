@@ -123,14 +123,16 @@ def main():
             continue
         meta = ID_LABEL[ag_id]
         workspace = ag.get('workspace', str(pathlib.Path.home() / f'.openclaw/workspace-{ag_id}'))
+        agent_model = normalize_model(ag.get('model', {}), taizi_default_model)
         result.append({
             'id': ag_id,
             'label': meta['label'], 'role': meta['role'], 'duty': meta['duty'], 'emoji': meta['emoji'],
-            'model': taizi_default_model,
+            'model': agent_model,
             'defaultModel': taizi_default_model,
             'workspace': workspace,
             'skills': get_skills(workspace),
             'allowAgents': ag.get('subagents', {}).get('allowAgents', []),
+            'isDefaultModel': agent_model == taizi_default_model,
         })
         seen_ids.add(ag_id)
 
